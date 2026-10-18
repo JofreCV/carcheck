@@ -2,6 +2,7 @@
 
 import {
   formatRelative, formatDateTime, formatClock, formatDuration, formatBytes, formatDistance, describePlace, describeLocationError,
+  formatCountdown, ticketTimeToTimestamp, timestampToTimeInput,
 } from './format.js';
 import { POOR_ACCURACY_M } from './location.js';
 import { isParked } from './model.js';
@@ -134,18 +135,64 @@ export function renderStatus(record) {
         <p class="status-title">Cerrado ✅</p>
         <p class="status-time">${formatRelative(record.createdAt)} <span class="muted">· ${formatClock(record.createdAt)}</span></p>
         ${place ? `<p class="status-place">${escapeHtml(place)}${accuracy}</p>` : ''}
+        ${ticketLine(record)}
         ${recordWarnings(record).map((w) => `<p class="status-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}
       </div>
     </div>
     <div class="status-actions">
+      <button type="button" class="btn" data-action="edit" data-record-id="${record.id}">✏️ Editar</button>
       <button type="button" class="btn" data-action="end-parking" data-record-id="${record.id}">🚗 Lo he recogido</button>
     </div>`;
+}
+
+/** "🅿️ Ticket: quedan 25 min (hasta 19:30)", en naranja si queda poco y en rojo si ha caducado. */
+function ticketLine(record, now = Date.now()) {
+  if (!record.ticketExpiresAt) return '';
+  const left = record.ticketExpiresAt - now;
+  const level = left < 0 ? 'expired' : left < 15 * 60 * 1000 ? 'soon' : 'ok';
+  return `<p class="status-ticket ${level}">🅿️ Ticket: ${formatCountdown(left)}
+    <span class="muted">(hasta ${timestampToTimeInput(record.ticketExpiresAt)})</span></p>`;
+}
+
+// ===== Campo «Ticket hasta» (hoja de cierre y diálogo de edición) =====
+
+/** Rellena el campo con un ticket existente, recordando el valor original. */
+export function setTicketInput(input, timestamp) {
+  input.value = timestamp ? timestampToTimeInput(timestamp) : '';
+  input.dataset.originalValue = input.value;
+  input.dataset.originalTimestamp = timestamp ?? '';
+}
+
+/**
+ * Lee el campo como instante. Si no se ha tocado se devuelve el original tal cual; si no,
+ * un ticket ya caducado (p. ej. 19:00 a las 19:05) saltaría a mañana al reinterpretar la hora.
+ */
+export function readTicketInput(input) {
+  if (!input.value) return null;
+  if (input.value === input.dataset.originalValue && input.dataset.originalTimestamp) {
+    return Number(input.dataset.originalTimestamp);
+  }
+  return ticketTimeToTimestamp(input.value);
+}
+
+export function setTicketFromNow(input, minutes) {
+  input.value = timestampToTimeInput(Date.now() + minutes * 60 * 1000);
+}
+
+// ===== Diálogo «Editar registro» =====
+
+export function openEditDialog(record) {
+  $('#edit-note').value = record.note;
+  setTicketInput($('#edit-ticket'), record.ticketExpiresAt);
+  $('#edit-ticket-field').hidden = !isParked(record); // el ticket solo importa mientras está aparcado
+  $('#edit-dialog').showModal();
 }
 
 // ===== Hoja de cierre =====
 
 export function resetLockSheet() {
   $('#lock-form').reset();
+  setTicketInput($('#lock-ticket'), null);
   setSaving(false);
   showSaveNow(false);
   renderProofPreview(null);
@@ -352,7 +399,10 @@ export function renderHistory(records) {
           ${meta.length ? `<p class="history-meta">${meta.join(' · ')}</p>` : ''}
           ${recordWarnings(record).map((w) => `<p class="history-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}
         </div>
-        <button type="button" class="btn-delete" data-delete-id="${record.id}" aria-label="Borrar registro">🗑️</button>
+        <div class="history-actions">
+          <button type="button" class="btn-icon" data-edit-id="${record.id}" aria-label="Editar registro">✏️</button>
+          <button type="button" class="btn-icon" data-delete-id="${record.id}" aria-label="Borrar registro">🗑️</button>
+        </div>
       </li>`;
   }).join('');
 }

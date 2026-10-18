@@ -3,7 +3,10 @@
 
 import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRecordsToPurge, isParked } from '../js/model.js';
 import * as storage from '../js/storage.js';
-import { formatRelative, formatClock, formatDuration, formatDistance, formatBytes, describePlace } from '../js/format.js';
+import {
+  formatRelative, formatClock, formatDuration, formatDistance, formatBytes, describePlace,
+  ticketTimeToTimestamp, timestampToTimeInput, formatCountdown,
+} from '../js/format.js';
 import { distanceMeters } from '../js/location.js';
 
 const tests = [];
@@ -100,6 +103,19 @@ test('formatDuration', () => {
   assertEqual(formatDuration(30e3), 'menos de 1 min');
   assertEqual(formatDuration(2 * 3600e3 + 5 * 60e3), '2 h 5 min');
   assertEqual(formatDuration(26 * 3600e3), '1 d 2 h');
+});
+
+test('ticketTimeToTimestamp: hoy si aún no ha pasado, mañana si ya pasó', () => {
+  const now = new Date(2026, 9, 18, 18, 0).getTime();
+  assertEqual(ticketTimeToTimestamp('19:30', now), new Date(2026, 9, 18, 19, 30).getTime());
+  assertEqual(ticketTimeToTimestamp('09:15', now), new Date(2026, 9, 19, 9, 15).getTime());
+  assertEqual(timestampToTimeInput(new Date(2026, 9, 18, 7, 5).getTime()), '07:05');
+});
+
+test('formatCountdown', () => {
+  assertEqual(formatCountdown(25 * 60e3), 'quedan 25 min');
+  assertEqual(formatCountdown(-5 * 60e3), 'caducado hace 5 min');
+  assertEqual(formatCountdown(59.5 * 60e3), 'quedan 1 h');
 });
 
 test('formatDistance y formatBytes', () => {

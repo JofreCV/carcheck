@@ -32,7 +32,7 @@ const MIGRATIONS = {
   }),
 };
 
-export function createRecord({ location = null, locationError = null, note = '', media = null, now = Date.now() } = {}) {
+export function createRecord({ location = null, locationError = null, note = '', media = null, ticketExpiresAt = null, now = Date.now() } = {}) {
   return {
     ...RECORD_DEFAULTS,
     schemaVersion: SCHEMA_VERSION,
@@ -42,6 +42,7 @@ export function createRecord({ location = null, locationError = null, note = '',
     locationError: location ? null : locationError,
     note: note.trim(),
     media,
+    ticketExpiresAt,
   };
 }
 

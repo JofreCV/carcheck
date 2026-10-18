@@ -43,6 +43,28 @@ export function formatClock(timestamp, now = Date.now()) {
   return formatDateTime(timestamp);
 }
 
+/** "19:30" → instante de hoy a esa hora, o de mañana si ya ha pasado (tickets de zona azul). */
+export function ticketTimeToTimestamp(hhmm, now = Date.now()) {
+  const [hours, minutes] = hhmm.split(':').map(Number);
+  const date = new Date(now);
+  date.setHours(hours, minutes, 0, 0);
+  if (date.getTime() <= now) date.setDate(date.getDate() + 1);
+  return date.getTime();
+}
+
+/** Instante → "HH:MM" para un <input type="time">. */
+export function timestampToTimeInput(timestamp) {
+  const date = new Date(timestamp);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+/** "quedan 25 min" o "caducado hace 5 min" */
+export function formatCountdown(msLeft) {
+  // Redondeo hacia arriba: con 59 min 30 s quedan «1 h», no «59 min» (el ticket aún vale).
+  if (msLeft >= 0) return `quedan ${formatDuration(Math.ceil(msLeft / MINUTE) * MINUTE)}`;
+  return `caducado hace ${formatDuration(-msLeft)}`;
+}
+
 /** "350 m", "1,2 km", "15 km" */
 export function formatDistance(meters) {
   if (meters < 1000) return `${Math.round(meters)} m`;

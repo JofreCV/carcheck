@@ -132,6 +132,28 @@ main {
 .status-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .status-actions .btn { flex: 1; min-height: 48px; }
 .status-card.ended .status-title { color: var(--muted); }
+.status-ticket { margin: 6px 0 0; font-weight: 600; }
+.status-ticket.soon { color: var(--warning); }
+.status-ticket.expired { color: var(--danger); }
+
+/* ===== Ticket de zona azul ===== */
+.ticket-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 400; }
+.ticket-input {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.chip {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-weight: 600;
+}
+.field .small { margin: 0; font-weight: 400; }
 .status-title { margin: 0; font-size: 1.3rem; font-weight: 700; }
 
 /* ===== Barra inferior ===== */
@@ -400,7 +422,8 @@ main {
 .history-place a { color: var(--primary); }
 .history-meta { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
 .history-warning { margin: 2px 0 0; color: var(--warning); font-size: 0.85rem; }
-.btn-delete {
+.history-actions { flex: none; display: flex; flex-direction: column; gap: 4px; }
+.btn-icon {
   flex: none;
   width: 44px;
   height: 44px;

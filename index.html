@@ -99,11 +99,50 @@
                placeholder="Planta -2, plaza 47, calle…" enterkeyhint="done">
       </label>
 
+      <div class="field ticket-field">
+        <span>🅿️ Ticket de zona azul hasta <span class="muted">(opcional)</span></span>
+        <div class="ticket-row">
+          <input type="time" class="ticket-input" id="lock-ticket" aria-label="Hora de caducidad del ticket">
+          <button type="button" class="chip" data-ticket-minutes="30">30 min</button>
+          <button type="button" class="chip" data-ticket-minutes="60">1 h</button>
+          <button type="button" class="chip" data-ticket-minutes="120">2 h</button>
+          <button type="button" class="chip" data-ticket-clear aria-label="Quitar ticket">✕</button>
+        </div>
+      </div>
+
       <div class="sheet-actions">
         <button type="button" id="btn-sheet-cancel" class="btn">Cancelar</button>
         <button type="submit" id="btn-save" class="btn primary">Guardar</button>
       </div>
       <button type="button" id="btn-save-now" class="btn block" hidden>Guardar sin esperar al GPS</button>
+    </form>
+  </dialog>
+
+  <!-- Editar un registro ya guardado: nota y ticket de zona azul -->
+  <dialog id="edit-dialog" class="sheet" aria-labelledby="edit-title">
+    <form id="edit-form" method="dialog">
+      <h2 id="edit-title">Editar registro</h2>
+      <label class="field">
+        <span>Nota</span>
+        <input id="edit-note" type="text" maxlength="120" autocomplete="off"
+               placeholder="Planta -2, plaza 47, calle…" enterkeyhint="done">
+      </label>
+      <div class="field ticket-field" id="edit-ticket-field">
+        <span>🅿️ Ticket de zona azul hasta</span>
+        <div class="ticket-row">
+          <input type="time" class="ticket-input" id="edit-ticket" aria-label="Hora de caducidad del ticket">
+          <button type="button" class="chip" data-ticket-minutes="30">30 min</button>
+          <button type="button" class="chip" data-ticket-minutes="60">1 h</button>
+          <button type="button" class="chip" data-ticket-minutes="120">2 h</button>
+          <button type="button" class="chip" data-ticket-clear aria-label="Quitar ticket">✕</button>
+        </div>
+        <p class="muted small">Te avisaremos 10 min antes y al caducar, pero solo si la app sigue abierta
+          o en segundo plano: no te fíes solo del aviso.</p>
+      </div>
+      <div class="sheet-actions">
+        <button type="button" id="btn-edit-cancel" class="btn">Cancelar</button>
+        <button type="submit" class="btn primary">Guardar</button>
+      </div>
     </form>
   </dialog>
 

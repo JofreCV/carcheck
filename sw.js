@@ -65,6 +65,15 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// Al tocar una notificación (aviso del ticket), abrir la app o traerla al frente.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) =>
+      windows.length ? windows[0].focus() : self.clients.openWindow('./')),
+  );
+});
+
 async function cacheFirst(request) {
   // En las navegaciones se ignora la query (?view=map de los accesos directos) para
   // que siempre encuentre el index.html cacheado.

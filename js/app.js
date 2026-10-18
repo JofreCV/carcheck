@@ -16,7 +16,9 @@ const { $ } = ui;
 
 async function refreshStatus() {
   try {
-    ui.renderStatus(await storage.getLatestRecord());
+    const latest = await storage.getLatestRecord();
+    ui.renderStatus(latest);
+    scheduleTicketReminders(latest);
   } catch (error) {
     console.error(error);
     ui.toast('No se han podido leer los datos guardados.', 'error');
@@ -216,7 +218,9 @@ async function saveLockRecord() {
       locationError,
       note: $('#note-input').value,
       media: pendingMedia?.info ?? null,
+      ticketExpiresAt: ui.readTicketInput($('#lock-ticket')),
     });
+    if (record.ticketExpiresAt) requestNotificationPermission();
 
     const previous = await storage.getLatestRecord();
     const { mediaDropped } = await storage.saveRecord(record, pendingMedia?.blob ?? null);
@@ -288,7 +292,90 @@ function setupStatusActions() {
   $('#status-card').addEventListener('click', (event) => {
     const button = event.target.closest('[data-action]');
     if (button?.dataset.action === 'end-parking') onEndParking(button.dataset.recordId);
+    if (button?.dataset.action === 'edit') openEdit(button.dataset.recordId);
   });
+}
+
+// ===== Editar registro (nota y ticket) =====
+
+let editingId = null;
+
+async function openEdit(recordId) {
+  const record = await storage.getRecord(recordId);
+  if (!record) return;
+  editingId = recordId;
+  ui.openEditDialog(record);
+}
+
+async function onEditSubmit() {
+  try {
+    const record = await storage.getRecord(editingId);
+    if (!record) return;
+    const ticketExpiresAt = isParked(record) ? ui.readTicketInput($('#edit-ticket')) : record.ticketExpiresAt;
+    await storage.updateRecord({ ...record, note: $('#edit-note').value.trim(), ticketExpiresAt });
+    $('#edit-dialog').close();
+    if (ticketExpiresAt && ticketExpiresAt !== record.ticketExpiresAt) requestNotificationPermission();
+    await refreshStatus();
+    if (currentView === 'history') refreshHistory();
+    ui.toast('Cambios guardados');
+  } catch (error) {
+    console.error(error);
+    ui.toast('No se han podido guardar los cambios.', 'error');
+  }
+}
+
+function setupEditing() {
+  $('#edit-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    onEditSubmit();
+  });
+  $('#btn-edit-cancel').addEventListener('click', () => $('#edit-dialog').close());
+  // Botones rápidos del ticket (30 min, 1 h, 2 h, ✕), en la hoja de cierre y en el diálogo.
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-ticket-minutes], [data-ticket-clear]');
+    if (!button) return;
+    const input = button.closest('.ticket-field').querySelector('.ticket-input');
+    if (button.dataset.ticketMinutes) ui.setTicketFromNow(input, Number(button.dataset.ticketMinutes));
+    else input.value = '';
+  });
+}
+
+// ===== Avisos del ticket de zona azul =====
+// Sin servidor no se puede programar una notificación que llegue con la app cerrada: estos
+// temporizadores solo funcionan mientras la página siga viva (abierta o en segundo plano reciente).
+
+let ticketTimers = [];
+let ticketTimersKey = '';
+
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(() => refreshStatus());
+  }
+}
+
+function scheduleTicketReminders(record) {
+  const key = isParked(record) && record.ticketExpiresAt ? `${record.id}:${record.ticketExpiresAt}` : '';
+  if (key === ticketTimersKey) return; // nada ha cambiado desde la última vez
+  ticketTimersKey = key;
+  ticketTimers.forEach(clearTimeout);
+  ticketTimers = [];
+  if (!key || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const now = Date.now();
+  const reminders = [
+    { at: record.ticketExpiresAt - 10 * 60 * 1000, body: 'Tu ticket de zona azul caduca en 10 minutos.' },
+    { at: record.ticketExpiresAt, body: 'Tu ticket de zona azul ha caducado.' },
+  ];
+  for (const { at, body } of reminders) {
+    if (at > now) ticketTimers.push(setTimeout(() => notify(body), at - now));
+  }
+}
+
+async function notify(body) {
+  const options = { body, icon: 'icons/icon-192.png', tag: 'ticket', renotify: true, vibrate: [200, 100, 200] };
+  const registration = await navigator.serviceWorker?.getRegistration();
+  if (registration) registration.showNotification('CarCheck · Zona azul', options);
+  else new Notification('CarCheck · Zona azul', options);
 }
 
 // ===== Visor de la prueba (miniaturas de la tarjeta de estado y del historial) =====
@@ -396,8 +483,10 @@ async function onDeleteRecord(recordId) {
 
 function setupHistory() {
   $('#history-list').addEventListener('click', (event) => {
-    const button = event.target.closest('[data-delete-id]');
-    if (button) onDeleteRecord(button.dataset.deleteId);
+    const deleteButton = event.target.closest('[data-delete-id]');
+    if (deleteButton) onDeleteRecord(deleteButton.dataset.deleteId);
+    const editButton = event.target.closest('[data-edit-id]');
+    if (editButton) openEdit(editButton.dataset.editId);
   });
 }
 
@@ -528,13 +617,15 @@ function init() {
   setupLockFlow();
   setupViewer();
   setupStatusActions();
+  setupEditing();
   setupHistory();
   setupStorage();
   registerServiceWorker();
   refreshStatus();
   handleLaunchParams();
-  // «hace X min» tiene que avanzar solo, y actualizarse al volver a la app desde segundo plano.
-  setInterval(refreshStatus, 60 * 1000);
+  // «hace X min» y la cuenta atrás del ticket tienen que avanzar solos, y actualizarse
+  // al volver a la app desde segundo plano.
+  setInterval(refreshStatus, 30 * 1000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       refreshStatus();
