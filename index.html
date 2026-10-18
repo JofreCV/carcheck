@@ -49,6 +49,20 @@
 
       <div id="gps-status" class="gps-status" role="status" aria-live="polite"></div>
 
+      <div class="field">
+        <span>Prueba visual <span class="muted">(opcional)</span></span>
+        <div id="proof-buttons" class="proof-buttons">
+          <button type="button" id="btn-photo" class="btn">📷 Foto</button>
+        </div>
+        <div id="proof-preview" class="proof-preview" hidden>
+          <img id="proof-thumb" alt="Miniatura de la prueba">
+          <span id="proof-info"></span>
+          <button type="button" id="btn-proof-remove" class="btn">✕ Quitar</button>
+        </div>
+        <!-- En Android, capture="environment" abre directamente la cámara trasera -->
+        <input type="file" id="photo-input" accept="image/*" capture="environment" hidden>
+      </div>
+
       <label class="field">
         <span>Nota <span class="muted">(opcional)</span></span>
         <input id="note-input" type="text" maxlength="120" autocomplete="off"
@@ -61,6 +75,12 @@
       </div>
       <button type="button" id="btn-save-now" class="btn block" hidden>Guardar sin esperar al GPS</button>
     </form>
+  </dialog>
+
+  <!-- Visor a pantalla completa de la foto o el vídeo -->
+  <dialog id="viewer" class="fullscreen" aria-label="Prueba visual">
+    <button type="button" id="btn-viewer-close" class="viewer-close" aria-label="Cerrar">✕</button>
+    <div id="viewer-content" class="viewer-content"></div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

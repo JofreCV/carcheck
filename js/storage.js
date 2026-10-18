@@ -115,6 +115,12 @@ export async function getLatestRecord() {
   return cursor ? migrateRecord(cursor.value) : null;
 }
 
+export async function getRecord(recordId) {
+  const record = await withTransaction('records', 'readonly', (tx) =>
+    requestResult(tx.objectStore('records').get(recordId)));
+  return record ? migrateRecord(record) : null;
+}
+
 export async function getMediaBlob(recordId) {
   const row = await withTransaction('media', 'readonly', (tx) =>
     requestResult(tx.objectStore('media').get(recordId)));

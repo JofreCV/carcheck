@@ -1,6 +1,6 @@
 // Todo lo que toca el DOM vive aquí, así app.js solo orquesta y es más fácil de leer.
 
-import { formatRelative, formatDateTime, describePlace, describeLocationError } from './format.js';
+import { formatRelative, formatDateTime, formatBytes, describePlace, describeLocationError } from './format.js';
 import { POOR_ACCURACY_M } from './location.js';
 
 export const $ = (selector, root = document) => root.querySelector(selector);
@@ -41,6 +41,39 @@ export function recordWarnings(record) {
   return warnings;
 }
 
+// ===== Miniaturas =====
+// Las miniaturas son Blobs; para mostrarlas hace falta una URL "blob:". Se reutiliza una por
+// registro y se libera al borrarlo, para no ir acumulando memoria en cada refresco.
+const thumbUrls = new Map();
+
+function thumbUrl(record) {
+  if (!record.media?.thumbnail) return null;
+  let url = thumbUrls.get(record.id);
+  if (!url) {
+    url = URL.createObjectURL(record.media.thumbnail);
+    thumbUrls.set(record.id, url);
+  }
+  return url;
+}
+
+export function forgetThumb(recordId) {
+  const url = thumbUrls.get(recordId);
+  if (url) URL.revokeObjectURL(url);
+  thumbUrls.delete(recordId);
+}
+
+/** Botón con la miniatura; data-record-id permite abrir el visor al tocarlo. */
+function thumbButton(record) {
+  const url = thumbUrl(record);
+  if (!url) return '';
+  const badge = record.media.type === 'video' ? '▶ vídeo' : '';
+  return `
+    <button type="button" class="thumb" data-record-id="${record.id}" aria-label="Ver la prueba a pantalla completa">
+      <img src="${url}" alt="">
+      ${badge ? `<span class="badge">${badge}</span>` : ''}
+    </button>`;
+}
+
 // ===== Tarjeta de estado =====
 
 export function renderStatus(record) {
@@ -59,6 +92,7 @@ export function renderStatus(record) {
   const accuracy = record.location ? ` <span class="muted">(±${record.location.accuracy} m)</span>` : '';
   card.className = 'card status-card locked';
   card.innerHTML = `
+    ${thumbButton(record)}
     <div class="status-body">
       <p class="status-title">Cerrado ✅</p>
       <p class="status-time">${formatRelative(record.createdAt)}</p>
@@ -73,6 +107,72 @@ export function resetLockSheet() {
   $('#lock-form').reset();
   setSaving(false);
   showSaveNow(false);
+  renderProofPreview(null);
+}
+
+let proofThumbUrl = null;
+/**
+ * Muestra la prueba elegida en la hoja, o los botones para elegir una si no hay.
+ * @param {{ info: object } | null} media
+ * @param {string} [busyText]  mensaje mientras se procesa ("Procesando foto…")
+ */
+export function renderProofPreview(media, busyText = '') {
+  if (proofThumbUrl) URL.revokeObjectURL(proofThumbUrl);
+  proofThumbUrl = null;
+
+  const showPreview = Boolean(media || busyText);
+  $('#proof-buttons').hidden = showPreview;
+  $('#proof-preview').hidden = !showPreview;
+  $('#btn-proof-remove').hidden = !media;
+
+  const img = $('#proof-thumb');
+  if (media?.info.thumbnail) {
+    proofThumbUrl = URL.createObjectURL(media.info.thumbnail);
+    img.src = proofThumbUrl;
+    img.hidden = false;
+  } else {
+    img.removeAttribute('src');
+    img.hidden = !media; // vídeo sin miniatura: se muestra el hueco vacío
+  }
+
+  if (busyText) $('#proof-info').textContent = busyText;
+  else if (media) $('#proof-info').textContent = describeMedia(media.info);
+}
+
+function describeMedia(info) {
+  const kind = info.type === 'video' ? '🎥 Vídeo' : '📷 Foto';
+  const duration = info.durationMs ? ` · ${(info.durationMs / 1000).toFixed(1)} s` : '';
+  return `${kind}${duration} · ${formatBytes(info.size)}`;
+}
+
+// ===== Visor a pantalla completa =====
+
+let viewerUrl = null;
+
+/**
+ * @param {object} record
+ * @param {Blob|null} blob  el archivo original; null si se borró por la retención
+ */
+export function openViewer(record, blob) {
+  closeViewerMedia();
+  const content = $('#viewer-content');
+  if (blob) {
+    viewerUrl = URL.createObjectURL(blob);
+    content.innerHTML = record.media.type === 'video'
+      ? `<video src="${viewerUrl}" controls autoplay playsinline></video>`
+      : `<img src="${viewerUrl}" alt="Foto del cierre">`;
+  } else {
+    content.innerHTML = `
+      ${thumbUrl(record) ? `<img src="${thumbUrl(record)}" alt="Miniatura">` : ''}
+      <p>El archivo original se borró para ahorrar espacio. Solo queda la miniatura.</p>`;
+  }
+  $('#viewer').showModal();
+}
+
+export function closeViewerMedia() {
+  $('#viewer-content').innerHTML = ''; // detiene el vídeo si se estaba reproduciendo
+  if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+  viewerUrl = null;
 }
 
 /**
