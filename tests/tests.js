@@ -3,6 +3,8 @@
 
 import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRecordsToPurge } from '../js/model.js';
 import * as storage from '../js/storage.js';
+import { formatRelative, formatDistance, formatBytes, describePlace } from '../js/format.js';
+import { distanceMeters } from '../js/location.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -57,6 +59,38 @@ test('selectRecordsToPurge ignora los ya purgados y no falla con N mayor que el 
   const records = [withMedia('a'), withMedia('b', true)];
   assertEqual(selectRecordsToPurge(records, 1).map((r) => r.id), []);
   assertEqual(selectRecordsToPurge(records, 10).map((r) => r.id), []);
+});
+
+// ===== format.js y location.js =====
+
+test('formatRelative', () => {
+  const now = 10 * 24 * 3600e3;
+  assertEqual(formatRelative(now - 20e3, now), 'hace un momento');
+  assertEqual(formatRelative(now - 5 * 60e3, now), 'hace 5 min');
+  assertEqual(formatRelative(now - (2 * 3600e3 + 14 * 60e3), now), 'hace 2 h 14 min');
+  assertEqual(formatRelative(now - 3 * 3600e3, now), 'hace 3 h');
+  assertEqual(formatRelative(now - (3 * 24 * 3600e3 + 4 * 3600e3), now), 'hace 3 d 4 h');
+});
+
+test('formatDistance y formatBytes', () => {
+  assertEqual(formatDistance(349.6), '350 m');
+  assertEqual(formatDistance(1234), '1,2 km');
+  assertEqual(formatDistance(15400), '15 km');
+  assertEqual(formatBytes(512), '512 B');
+  assertEqual(formatBytes(1.5 * 1024 * 1024), '1,5 MB');
+});
+
+test('describePlace prioriza la nota y si no hay usa coordenadas', () => {
+  const location = { lat: 41.118912, lng: 1.244512, accuracy: 8 };
+  assertEqual(describePlace({ note: 'Plaza 47', location }), 'Plaza 47');
+  assertEqual(describePlace({ note: '', location }), '41.11891, 1.24451');
+  assertEqual(describePlace({ note: '', location: null }), '');
+});
+
+test('distanceMeters (haversine) Tarragona–Reus ≈ 13 km', () => {
+  const d = distanceMeters({ lat: 41.1189, lng: 1.2445 }, { lat: 41.1561, lng: 1.1069 });
+  assert(d > 12000 && d < 13000, `distancia ${d}`);
+  assertEqual(distanceMeters({ lat: 1, lng: 1 }, { lat: 1, lng: 1 }), 0);
 });
 
 // ===== storage.js (sobre una base de datos de pruebas) =====

@@ -11,7 +11,7 @@ const RECORD_DEFAULTS = {
   vehicleId: DEFAULT_VEHICLE_ID,
   locked: true,
   location: null,       // { lat, lng, accuracy, capturedAt }
-  locationError: null,  // 'denied' | 'timeout' | 'unavailable' | 'unsupported'
+  locationError: null,  // 'denied' | 'timeout' | 'unavailable' | 'unsupported' | 'skipped'
   address: null,        // reservado para la geocodificación inversa
   note: '',
   media: null,          // ver createMediaInfo()

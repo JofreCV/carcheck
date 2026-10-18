@@ -171,3 +171,47 @@ main {
 }
 .toast.warning { background: var(--warning-bg); color: var(--text); border: 1px solid var(--warning); }
 .toast.error { background: var(--danger); color: #fff; }
+
+.status-card .status-body { flex: 1; min-width: 0; }
+.status-card.locked .status-title { color: var(--success); }
+.status-time { margin: 2px 0 0; font-size: 1.05rem; font-weight: 600; }
+.status-place { margin: 4px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.status-warning { margin: 6px 0 0; color: var(--warning); font-size: 0.9rem; }
+
+/* ===== Hoja inferior (dialog) ===== */
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  margin: auto auto 0;
+  padding: 20px 16px calc(16px + var(--safe-bottom));
+  border: 0;
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 -4px 24px rgb(0 0 0 / 0.25);
+}
+.sheet::backdrop { background: rgb(0 0 0 / 0.45); }
+.sheet h2 { margin: 0 0 12px; font-size: 1.25rem; }
+.sheet form { display: flex; flex-direction: column; gap: 14px; }
+
+.sheet-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.field input {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  font-weight: 400;
+}
+
+.gps-status {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.gps-status.ok { color: var(--success); }
+.gps-status.warning { background: var(--warning-bg); color: var(--text); }
+.gps-status.error { color: var(--danger); }
+.gps-status small { display: block; color: var(--muted); margin-top: 2px; }
