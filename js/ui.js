@@ -1,6 +1,6 @@
 // Todo lo que toca el DOM vive aquí, así app.js solo orquesta y es más fácil de leer.
 
-import { formatRelative, formatDateTime, formatBytes, formatDistance, describePlace, describeLocationError } from './format.js';
+import { formatRelative, formatDateTime, formatClock, formatBytes, formatDistance, describePlace, describeLocationError } from './format.js';
 import { POOR_ACCURACY_M } from './location.js';
 
 export const $ = (selector, root = document) => root.querySelector(selector);
@@ -95,8 +95,8 @@ export function renderStatus(record) {
     ${thumbButton(record)}
     <div class="status-body">
       <p class="status-title">Cerrado ✅</p>
-      <p class="status-time">${formatRelative(record.createdAt)}</p>
-      <p class="status-place">${place ? escapeHtml(place) + accuracy : formatDateTime(record.createdAt)}</p>
+      <p class="status-time">${formatRelative(record.createdAt)} <span class="muted">· ${formatClock(record.createdAt)}</span></p>
+      ${place ? `<p class="status-place">${escapeHtml(place)}${accuracy}</p>` : ''}
       ${recordWarnings(record).map((w) => `<p class="status-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}
     </div>`;
 }

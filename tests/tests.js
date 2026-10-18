@@ -3,7 +3,7 @@
 
 import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRecordsToPurge } from '../js/model.js';
 import * as storage from '../js/storage.js';
-import { formatRelative, formatDistance, formatBytes, describePlace } from '../js/format.js';
+import { formatRelative, formatClock, formatDistance, formatBytes, describePlace } from '../js/format.js';
 import { distanceMeters } from '../js/location.js';
 
 const tests = [];
@@ -70,6 +70,13 @@ test('formatRelative', () => {
   assertEqual(formatRelative(now - (2 * 3600e3 + 14 * 60e3), now), 'hace 2 h 14 min');
   assertEqual(formatRelative(now - 3 * 3600e3, now), 'hace 3 h');
   assertEqual(formatRelative(now - (3 * 24 * 3600e3 + 4 * 3600e3), now), 'hace 3 d 4 h');
+});
+
+test('formatClock: hoy, ayer y fecha completa', () => {
+  const now = new Date(2026, 9, 18, 20, 0).getTime();
+  assertEqual(formatClock(new Date(2026, 9, 18, 18, 32).getTime(), now), 'hoy 18:32');
+  assertEqual(formatClock(new Date(2026, 9, 17, 23, 5).getTime(), now), 'ayer 23:05');
+  assert(formatClock(new Date(2026, 9, 10, 9, 0).getTime(), now).includes('oct'), 'fecha completa');
 });
 
 test('formatDistance y formatBytes', () => {

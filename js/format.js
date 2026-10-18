@@ -27,6 +27,16 @@ export function formatDateTime(timestamp) {
   return dateTimeFormatter.format(timestamp);
 }
 
+const clockFormatter = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' });
+/** "hoy 18:32", "ayer 18:32" o "sáb, 14 oct, 18:32" si es más antiguo. */
+export function formatClock(timestamp, now = Date.now()) {
+  const dayStart = (t) => new Date(t).setHours(0, 0, 0, 0);
+  const days = Math.round((dayStart(now) - dayStart(timestamp)) / DAY);
+  if (days === 0) return `hoy ${clockFormatter.format(timestamp)}`;
+  if (days === 1) return `ayer ${clockFormatter.format(timestamp)}`;
+  return formatDateTime(timestamp);
+}
+
 /** "350 m", "1,2 km", "15 km" */
 export function formatDistance(meters) {
   if (meters < 1000) return `${Math.round(meters)} m`;

@@ -30,12 +30,14 @@ let gps = null;          // { promise, stop } de acquireBestPosition
 let gpsState = null;     // { fix, error, done }
 let skipGpsWait = null;  // resuelve la espera cuando se pulsa «Guardar sin esperar»
 let pendingMedia = null; // { blob, info } de la foto o el vídeo elegidos, aún sin guardar
-let processingMedia = false;
+let mediaProcessing = null; // promesa mientras se comprime una foto o se lee un vídeo
+let sheetSession = 0;       // distingue cada apertura de la hoja (para descartar resultados tardíos)
 let saving = false;
 
 function openLockSheet() {
   ui.resetLockSheet();
   pendingMedia = null;
+  sheetSession++;
   gpsState = { fix: null, error: null, done: false };
   ui.renderGpsStatus(gpsState);
   $('#lock-sheet').showModal();
@@ -73,17 +75,28 @@ async function onPhotoChosen(event) {
   event.target.value = ''; // permite volver a elegir la misma foto
   if (!file) return; // el usuario cerró la cámara sin hacer foto
 
-  processingMedia = true;
-  ui.renderProofPreview(null, 'Procesando foto…');
-  try {
-    setPendingMedia(await processPhoto(file));
-  } catch (error) {
-    console.error(error);
-    setPendingMedia(null);
-    ui.toast('No se ha podido procesar la foto. Puedes guardar sin ella.', 'warning');
-  } finally {
-    processingMedia = false;
-  }
+  await processMedia(processPhoto(file), 'Procesando foto…', 'No se ha podido procesar la foto. Puedes guardar sin ella.');
+}
+
+/**
+ * Muestra "Procesando…" mientras dura `task` y deja el resultado como prueba pendiente.
+ * La promesa se guarda para que «Guardar» pueda esperarla en vez de fallar.
+ */
+function processMedia(task, busyText, errorText) {
+  const session = sheetSession;
+  ui.renderProofPreview(null, busyText);
+  mediaProcessing = task
+    .then((media) => {
+      if (session === sheetSession) setPendingMedia(media);
+    })
+    .catch((error) => {
+      console.error(error);
+      if (session !== sheetSession) return;
+      setPendingMedia(null);
+      ui.toast(errorText, 'warning');
+    })
+    .finally(() => { mediaProcessing = null; });
+  return mediaProcessing;
 }
 
 function setPendingMedia(media) {
@@ -159,17 +172,7 @@ async function onVideoChosen(event) {
   event.target.value = '';
   if (!file) return;
 
-  processingMedia = true;
-  ui.renderProofPreview(null, 'Procesando vídeo…');
-  try {
-    setPendingMedia(await processVideoFile(file));
-  } catch (error) {
-    console.error(error);
-    setPendingMedia(null);
-    ui.toast('No se ha podido procesar el vídeo. Puedes guardar sin él.', 'warning');
-  } finally {
-    processingMedia = false;
-  }
+  await processMedia(processVideoFile(file), 'Procesando vídeo…', 'No se ha podido procesar el vídeo. Puedes guardar sin él.');
 }
 
 /** Si aún no hay ninguna lectura de GPS, espera a que llegue o a que el usuario decida no esperar. */
@@ -190,11 +193,11 @@ async function saveLockRecord() {
   saving = true;
   try {
     await waitForGpsIfNeeded();
-    if (!$('#lock-sheet').open) return; // la hoja se cerró mientras esperábamos
-    if (processingMedia) {
-      ui.toast('Espera a que termine de procesarse la foto o el vídeo.', 'info');
-      return;
+    if (mediaProcessing) {
+      ui.setSaving(true, 'Procesando…');
+      await mediaProcessing;
     }
+    if (!$('#lock-sheet').open) return; // la hoja se cerró mientras esperábamos
 
     gps.stop(); // nos quedamos con la mejor lectura que haya
     ui.setSaving(true);
@@ -210,6 +213,7 @@ async function saveLockRecord() {
 
     const { mediaDropped } = await storage.saveRecord(record, pendingMedia?.blob ?? null);
     closeLockSheet();
+    navigator.vibrate?.(60); // confirmación táctil: se nota aunque no mires la pantalla
     await refreshStatus();
     afterSaveHousekeeping();
     if (mediaDropped) ui.toast('Almacenamiento lleno: se ha guardado el cierre sin la foto/vídeo.', 'warning', 6000);
@@ -274,8 +278,14 @@ function setupViewer() {
 
 let mapModule = null;      // se carga la primera vez que se abre la vista (import dinámico)
 let stopWatchingMe = null; // deja de seguir la posición al salir del mapa (ahorra batería)
+let mapEntryId = 0;        // cada entrada al mapa tiene un número; las anteriores se descartan
 
 async function enterMapView() {
+  const entryId = ++mapEntryId;
+  // Tras cada await: si el usuario ya se ha ido del mapa (o ha vuelto a entrar), no seguir.
+  // Si no, el GPS se quedaría encendido en otra pestaña.
+  const stillHere = () => entryId === mapEntryId && currentView === 'map';
+
   try {
     mapModule ??= await import('./map.js');
   } catch (error) {
@@ -283,9 +293,11 @@ async function enterMapView() {
     $('#map-info').textContent = 'No se ha podido cargar el mapa. ¿Estás sin conexión?';
     return;
   }
+  if (!stillHere()) return;
   mapModule.ensureMap($('#map'));
 
   const record = await storage.getLatestRecord();
+  if (!stillHere()) return;
   const car = record?.location ?? null;
   const state = { record, distance: null, me: null, meError: null };
   mapModule.showCar(car);
@@ -311,6 +323,7 @@ async function enterMapView() {
 }
 
 function leaveMapView() {
+  mapEntryId++; // invalida una entrada que aún se esté cargando
   stopWatchingMe?.();
   stopWatchingMe = null;
 }
