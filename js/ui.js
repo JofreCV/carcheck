@@ -2,7 +2,7 @@
 
 import {
   formatRelative, formatDateTime, formatClock, formatDuration, formatBytes, formatDistance, describePlace, describeLocationError,
-  formatCountdown, ticketTimeToTimestamp, timestampToTimeInput,
+  formatCountdown, ticketTimeToTimestamp, timestampToTimeInput, mapsLink,
 } from './format.js';
 import { POOR_ACCURACY_M } from './location.js';
 import { isParked } from './model.js';
@@ -364,7 +364,9 @@ export function renderMapInfo({ record, distance, me, meError }) {
   }
   const place = record.note || record.address ? describePlace(record) : '';
   const when = `Cerrado ${formatRelative(record.createdAt)}${place ? ` · ${escapeHtml(place)}` : ''}`;
-  if (distance != null) {
+  if (distance != null && distance < 15) {
+    info.innerHTML = `🎉 Estás al lado de tu coche<small>${when}</small>`;
+  } else if (distance != null) {
     info.innerHTML = `🚗 A ${formatDistance(distance)} de ti<small>${when}</small>`;
   } else if (meError) {
     info.innerHTML = `🚗 Tu coche<small>${when}. No se puede saber dónde estás: ${escapeHtml(describeLocationError(meError.code))}.</small>`;
@@ -420,8 +422,7 @@ export function renderHistory(records) {
   }
   list.innerHTML = records.map((record, index) => {
     const place = record.location
-      ? `<a href="https://www.google.com/maps/search/?api=1&query=${record.location.lat},${record.location.lng}"
-            target="_blank" rel="noopener">${escapeHtml(describePlace(record))}</a>`
+      ? `<a href="${mapsLink(record.location)}" target="_blank" rel="noopener">${escapeHtml(describePlace(record))}</a>`
       : escapeHtml(record.note);
     const meta = [];
     // Si la precisión es mala ya sale en el aviso; aquí no se repite.

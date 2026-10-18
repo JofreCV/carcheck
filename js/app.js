@@ -3,7 +3,7 @@
 import * as ui from './ui.js';
 import * as storage from './storage.js';
 import { createRecord, selectRecordsToPurge, isParked } from './model.js';
-import { plural } from './format.js';
+import { plural, shareText } from './format.js';
 import { reverseGeocode } from './geocode.js';
 import { prefetchParkingTiles } from './offline-tiles.js';
 import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters, bearingDegrees } from './location.js';
@@ -565,8 +565,30 @@ function openCompass() {
   stopCompassSensors = () => { stopGps(); stopHeading(); };
 }
 
+// ===== Compartir ubicación =====
+
+async function onShare() {
+  const record = await storage.getLatestRecord();
+  if (!isParked(record) || !record.location) return;
+  const text = shareText(record);
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'Ubicación de mi coche', text });
+    } else {
+      await navigator.clipboard.writeText(text);
+      ui.toast('📋 Ubicación copiada: pégala donde quieras');
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError') { // AbortError = el usuario cerró el menú de compartir
+      console.error(error);
+      ui.toast('No se ha podido compartir la ubicación.', 'error');
+    }
+  }
+}
+
 function setupCompass() {
   $('#btn-compass').addEventListener('click', openCompass);
+  $('#btn-share').addEventListener('click', onShare);
   $('#btn-compass-close').addEventListener('click', () => $('#compass').close());
   // Al cerrar (✕ o botón atrás) se apagan el GPS y la brújula.
   $('#compass').addEventListener('close', () => {

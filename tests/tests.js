@@ -5,7 +5,7 @@ import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRec
 import * as storage from '../js/storage.js';
 import {
   formatRelative, formatClock, formatDuration, formatDistance, formatBytes, describePlace,
-  ticketTimeToTimestamp, timestampToTimeInput, formatCountdown,
+  ticketTimeToTimestamp, timestampToTimeInput, formatCountdown, shareText,
 } from '../js/format.js';
 import { distanceMeters, bearingDegrees } from '../js/location.js';
 import { buildAddress } from '../js/geocode.js';
@@ -118,6 +118,14 @@ test('formatCountdown', () => {
   assertEqual(formatCountdown(25 * 60e3), 'quedan 25 min');
   assertEqual(formatCountdown(-5 * 60e3), 'caducado hace 5 min');
   assertEqual(formatCountdown(59.5 * 60e3), 'quedan 1 h');
+});
+
+test('shareText', () => {
+  const location = { lat: 41.1189, lng: 1.2445, accuracy: 8 };
+  assertEqual(shareText({ note: 'Planta -2', address: 'Carrer Major 12, Tarragona', location }),
+    '🚗 Mi coche está aquí (Planta -2 · Carrer Major 12, Tarragona): https://www.google.com/maps/search/?api=1&query=41.1189,1.2445');
+  assertEqual(shareText({ note: '', address: null, location }),
+    '🚗 Mi coche está aquí: https://www.google.com/maps/search/?api=1&query=41.1189,1.2445');
 });
 
 test('formatDistance y formatBytes', () => {

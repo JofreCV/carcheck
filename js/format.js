@@ -104,6 +104,17 @@ export function describeLocationError(code) {
   return LOCATION_ERROR_TEXT[code] ?? 'ubicación no disponible';
 }
 
+/** Enlace de Google Maps que muestra un punto (se abre en la app de Maps en Android). */
+export function mapsLink({ lat, lng }) {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
+
+/** Texto para compartir: "🚗 Mi coche está aquí (Planta -2 · Carrer Major 12, Tarragona): <enlace>" */
+export function shareText(record) {
+  const details = [record.note, record.address].filter(Boolean).join(' · ');
+  return `🚗 Mi coche está aquí${details ? ` (${details})` : ''}: ${mapsLink(record.location)}`;
+}
+
 /** Texto corto que describe dónde está el coche: nota, dirección o coordenadas. */
 export function describePlace(record) {
   const parts = [];
