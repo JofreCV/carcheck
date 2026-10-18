@@ -23,23 +23,30 @@ Usuario: Jofre, estudiante de Ingeniería Informática.
 ## Arquitectura
 | Archivo | Responsabilidad |
 |---|---|
-| `index.html` | App shell: vistas Inicio / Mapa / Historial, barra inferior, hoja de cierre y diálogos |
+| `index.html` | App shell: vistas Inicio / Mapa / Historial, barra inferior, hoja de cierre y diálogos (cámara, editar, brújula, visor) |
 | `css/styles.css` | Estilos mobile-first, tokens de color en `:root` y modo oscuro automático |
 | `js/app.js` | Arranque, navegación entre vistas y orquestación de los flujos |
 | `js/ui.js` | Todo lo que pinta en el DOM (tarjeta de estado, historial, hoja, toasts) |
-| `js/format.js` | Funciones puras de formato (tiempo relativo, distancia, bytes…) |
-| `js/model.js` | Modelo de datos versionado: `SCHEMA_VERSION`, `createRecord`, `migrateRecord`, reglas de retención |
+| `js/format.js` | Funciones puras de formato (tiempo relativo, duración, cuenta atrás del ticket, distancia, texto para compartir…) |
+| `js/model.js` | Modelo de datos versionado: `SCHEMA_VERSION`, `MIGRATIONS`, `createRecord`, `migrateRecord`, `isParked`, reglas de retención |
 | `js/storage.js` | IndexedDB (records, media, settings), retención de multimedia, `persist`/`estimate` |
-| `js/location.js` | Geolocalización con la mejor precisión posible, errores tipados y haversine |
-| `js/media.js` | Foto (compresión con canvas), vídeo (MediaRecorder + fallback con input) y miniaturas |
-| `js/map.js` | Leaflet: marcador del coche, posición actual y enlace a Google Maps |
+| `js/location.js` | Geolocalización con la mejor precisión, última ubicación conocida, haversine y rumbo |
+| `js/media.js` | Cámara en la app (foto con ImageCapture, vídeo con MediaRecorder, linterna), compresión, miniaturas y fallback con input |
+| `js/map.js` | Leaflet: marcador del coche, posición actual, encuadre y enlace a Google Maps (carga diferida) |
+| `js/geocode.js` | Dirección de la calle con Nominatim (cola de 1 petición/1,1 s) — único módulo que habla con un servicio externo de datos |
+| `js/compass.js` | Brújula (`deviceorientationabsolute`) para la flecha hacia el coche |
+| `js/offline-tiles.js` | Matemática de teselas y descarga de 19 teselas alrededor del coche al aparcar (sin Leaflet) |
 | `sw.js` | Service Worker |
 | `tests/index.html` | Tests en el navegador (sin node) |
 | `tools/` | Servidor de desarrollo (`devserver.py`) y túnel HTTPS (`dev.ps1`) |
 
 ## Modelo de datos (IndexedDB `carcheck`)
-- `records` (keyPath `id`, índice `createdAt`): `{ schemaVersion, id, vehicleId, createdAt, locked, location, locationError, address, note, media }`.
-  - `location`: `null` o `{ lat, lng, accuracy, capturedAt }`. `locationError`: `null` | `denied` | `timeout` | `unavailable` | `unsupported` | `skipped` (se guardó sin esperar al GPS).
+- `records` (keyPath `id`, índice `createdAt`), **schemaVersion 2**: `{ schemaVersion, id, vehicleId, createdAt, locked, location, locationError, address, note, media, endedAt, ticketExpiresAt }`.
+  - `location`: `null` o `{ lat, lng, accuracy, capturedAt, source: 'gps'|'lastKnown' }`. `locationError`: `null` | `denied` | `timeout` | `unavailable` | `unsupported` | `skipped`.
+  - `address`: `null` = pendiente de buscar en Nominatim, `''` = sin resultado, texto = calle.
+  - `endedAt`: cuándo se recogió el coche (`null` = sigue aparcado; ver `isParked`). Al guardar un registro nuevo se cierra el anterior.
+  - `ticketExpiresAt`: fin del ticket de zona azul (epoch ms) o `null`.
+  - Historial de migraciones: v1 → v2 añadió `endedAt`, `ticketExpiresAt` y `location.source`.
   - `media`: `null` o `{ type: "photo"|"video", mimeType, size, width, height, durationMs, thumbnail: Blob, purged }`.
 - `media` (keyPath `recordId`): `{ recordId, blob }`. El archivo grande va aparte para que listar no cargue vídeos y para que purgar consista en borrar una fila.
 - `settings` (clave/valor): `mediaRetention` (por defecto 10). La retención conserva el archivo de los N registros **con multimedia** más recientes; de los demás borra el blob y marca `media.purged = true` (la miniatura se queda).
@@ -50,11 +57,14 @@ Usuario: Jofre, estudiante de Ingeniería Informática.
 - Código claro antes que ingenioso. Nada de dependencias innecesarias.
 - Rutas siempre relativas (`./…`), porque Pages sirve la app bajo `/carcheck/`.
 - Cada operación que pueda fallar (GPS, cámara, grabación, cuota) tiene que dejar guardar el registro igualmente, aunque sea sin coordenadas o sin multimedia.
-- **Cada vez que cambie un archivo del app shell, sube `CACHE_VERSION` en `sw.js`** y, si añades archivos, inclúyelos en `SHELL_FILES`.
+- **Antes de cada despliegue que toque el app shell, sube `CACHE_VERSION` en `sw.js`** (va por `v2`) y, si añades archivos, inclúyelos en `SHELL_FILES`.
 - Un commit por funcionalidad, con mensajes descriptivos.
 - `map.js` (y Leaflet) se cargan con `import()` al abrir el mapa; no importarlo de forma estática desde `app.js`.
 - Accesos directos del manifest: `?action=lock` abre la hoja de cierre y `?view=map` abre el mapa (`handleLaunchParams` en `app.js`).
 - Cuando se instala un Service Worker nuevo, la página se recarga sola, pero espera a que no haya ningún `<dialog>` abierto.
+- Servicios externos y sus políticas: Nominatim (máx. 1 petición/s, nunca repetir, máx. 5 registros pendientes por arranque) y teselas de OSM (nada de descargas masivas: la precarga son 19 teselas por aparcamiento).
+- Los avisos del ticket son best effort: sin servidor no hay notificaciones programadas con la app cerrada. No prometer otra cosa en la interfaz.
+- Cámara: cualquier fallo de `getUserMedia` activa el modo «cámara del sistema» (`<input capture>`) para ese tipo (foto/vídeo); el input no se abre en el mismo toque porque Chrome puede bloquearlo tras el diálogo de permisos.
 
 ## Desarrollo y pruebas
 - `powershell -ExecutionPolicy Bypass -File tools/dev.ps1` levanta el servidor en `http://localhost:8080` y un túnel de cloudflared que imprime la URL `https://….trycloudflare.com` para abrirla en el móvil.
@@ -62,8 +72,10 @@ Usuario: Jofre, estudiante de Ingeniería Informática.
 - Pruebas E2E: Chrome headless controlado por el DevTools Protocol (geolocalización simulada, `--use-fake-device-for-media-stream` para la cámara, `Network.emulateNetworkConditions` para el modo offline). **El perfil de Chrome tiene que estar en una ruta corta** (p. ej. `%TEMP%\cc-carcheck`): con rutas largas, CacheStorage falla con «Unexpected internal error» y el Service Worker no se instala.
 - Herramientas instaladas en Windows: cloudflared (`C:\Program Files (x86)\cloudflared\`), gh (`C:\Program Files\GitHub CLI\`), Python 3.13.
 
+## Pendiente de probar en un móvil real
+- Linterna (`torch`), `ImageCapture.takePhoto()`, brújula real y notificaciones del ticket (en headless solo se pueden simular).
+
 ## Ideas futuras (la arquitectura ya está preparada)
-- Exportar e importar en JSON (serializar `records`, `settings` y los blobs en base64).
-- Recordatorio de la zona azul (Notifications API).
+- Exportar e importar en JSON (serializar `records`, `settings` y los blobs en base64). El usuario la descartó en la v2.
 - Varios vehículos (`vehicleId` ya existe en cada registro).
-- Geocodificación inversa con Nominatim (campo `address` reservado; respetar su política: 1 petición/s y sin peticiones masivas).
+- Si algún día hace falta: widget, avisos fiables con la app cerrada o detección por Bluetooth → requieren app nativa (Capacitor). El usuario decidió seguir como web app.
