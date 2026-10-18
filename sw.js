@@ -6,7 +6,7 @@
 
 // IMPORTANTE: subir este número en cada cambio de cualquier archivo del app shell;
 // si no, los móviles que ya tienen la app seguirán usando la versión antigua.
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const SHELL_CACHE = `carcheck-shell-${CACHE_VERSION}`;
 const TILE_CACHE = 'carcheck-tiles';
 const MAX_TILES = 300;
@@ -38,7 +38,10 @@ const SHELL_FILES = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL_FILES))
+      // cache: 'reload' obliga a descargar cada archivo del servidor. Sin esto, addAll puede
+      // coger la copia de la caché HTTP del navegador (GitHub Pages da 10 min de caché) y
+      // guardar en la versión nueva los archivos de la versión anterior.
+      .then((cache) => cache.addAll(SHELL_FILES.map((url) => new Request(url, { cache: 'reload' }))))
       // Activar la versión nueva sin esperar a que se cierren todas las pestañas.
       .then(() => self.skipWaiting()),
   );

@@ -57,11 +57,12 @@ Usuario: Jofre, estudiante de Ingeniería Informática.
 - Código claro antes que ingenioso. Nada de dependencias innecesarias.
 - Rutas siempre relativas (`./…`), porque Pages sirve la app bajo `/carcheck/`.
 - Cada operación que pueda fallar (GPS, cámara, grabación, cuota) tiene que dejar guardar el registro igualmente, aunque sea sin coordenadas o sin multimedia.
-- **Antes de cada despliegue que toque el app shell, sube `CACHE_VERSION` en `sw.js`** (va por `v2`) y, si añades archivos, inclúyelos en `SHELL_FILES`.
+- **Antes de cada despliegue que toque el app shell, sube `CACHE_VERSION` en `sw.js`** (va por `v3`) y, si añades archivos, inclúyelos en `SHELL_FILES`.
 - Un commit por funcionalidad, con mensajes descriptivos.
 - `map.js` (y Leaflet) se cargan con `import()` al abrir el mapa; no importarlo de forma estática desde `app.js`.
 - Accesos directos del manifest: `?action=lock` abre la hoja de cierre y `?view=map` abre el mapa (`handleLaunchParams` en `app.js`).
 - Cuando se instala un Service Worker nuevo, la página se recarga sola, pero espera a que no haya ningún `<dialog>` abierto.
+- La instalación del Service Worker descarga el app shell con `cache: 'reload'`: GitHub Pages da 10 min de caché HTTP y, sin eso, la versión nueva se llenaba con archivos antiguos (pasó al desplegar la v2; en local no se ve porque el devserver usa `no-store`). **Tras cada despliegue, probar la actualización en producción con un perfil que tenga la versión anterior.**
 - Servicios externos y sus políticas: Nominatim (máx. 1 petición/s, nunca repetir, máx. 5 registros pendientes por arranque) y teselas de OSM (nada de descargas masivas: la precarga son 19 teselas por aparcamiento).
 - Los avisos del ticket son best effort: sin servidor no hay notificaciones programadas con la app cerrada. No prometer otra cosa en la interfaz.
 - Cámara: cualquier fallo de `getUserMedia` activa el modo «cámara del sistema» (`<input capture>`) para ese tipo (foto/vídeo); el input no se abre en el mismo toque porque Chrome puede bloquearlo tras el diálogo de permisos.
