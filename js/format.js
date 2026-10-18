@@ -46,6 +46,11 @@ export function formatBytes(bytes) {
   return `${value.toLocaleString('es-ES', { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
 }
 
+/** plural(1, 'archivo', 'archivos') → "1 archivo"; plural(3, …) → "3 archivos" */
+export function plural(count, singular, pluralForm) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
 export function formatCoords({ lat, lng }) {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }

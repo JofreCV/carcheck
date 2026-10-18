@@ -2,7 +2,8 @@
 
 import * as ui from './ui.js';
 import * as storage from './storage.js';
-import { createRecord } from './model.js';
+import { createRecord, selectRecordsToPurge } from './model.js';
+import { plural } from './format.js';
 import { acquireBestPosition, watchCurrentPosition, distanceMeters } from './location.js';
 import {
   processPhoto, processVideoFile, isInAppRecordingSupported, openRearCamera, stopCamera,
@@ -210,6 +211,7 @@ async function saveLockRecord() {
     const { mediaDropped } = await storage.saveRecord(record, pendingMedia?.blob ?? null);
     closeLockSheet();
     await refreshStatus();
+    afterSaveHousekeeping();
     if (mediaDropped) ui.toast('Almacenamiento lleno: se ha guardado el cierre sin la foto/vídeo.', 'warning', 6000);
     else ui.toast(fix ? '🔒 Cierre guardado' : '🔒 Cierre guardado sin ubicación', fix ? 'info' : 'warning');
   } catch (error) {
@@ -329,7 +331,7 @@ async function onDeleteRecord(recordId) {
   try {
     await storage.deleteRecord(recordId);
     ui.forgetThumb(recordId);
-    await Promise.all([refreshHistory(), refreshStatus()]);
+    await Promise.all([refreshHistory(), refreshStatus(), refreshStorageInfo()]);
     ui.toast('Registro borrado');
   } catch (error) {
     console.error(error);
@@ -344,6 +346,76 @@ function setupHistory() {
   });
 }
 
+// ===== Almacenamiento =====
+
+/** Tras guardar: pedir almacenamiento persistente y aplicar la retención de multimedia. */
+async function afterSaveHousekeeping() {
+  try {
+    // Chrome concede (o no) la persistencia sin preguntar, según lo que se use la web;
+    // pedirlo justo después de guardar algo importante es el mejor momento.
+    await storage.requestPersistentStorage();
+    const { mediaRetention } = await storage.getSettings();
+    await storage.enforceMediaRetention(mediaRetention);
+  } catch (error) {
+    console.error(error); // no es crítico: el registro ya está guardado
+  }
+}
+
+async function refreshStorageInfo() {
+  try {
+    const [estimate, persisted, settings] = await Promise.all([
+      storage.getStorageEstimate(),
+      storage.isStoragePersisted(),
+      storage.getSettings(),
+    ]);
+    ui.renderStorageInfo({
+      estimate,
+      persisted,
+      persistSupported: Boolean(navigator.storage?.persist),
+      retention: settings.mediaRetention,
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function onPersistClicked() {
+  const granted = await storage.requestPersistentStorage();
+  ui.toast(granted
+    ? '🛡️ Datos protegidos'
+    : 'Chrome no lo ha concedido todavía. Instala la app en la pantalla de inicio y vuelve a intentarlo.',
+  granted ? 'info' : 'warning', 6000);
+  refreshStorageInfo();
+}
+
+async function onRetentionChanged(event) {
+  const input = event.target;
+  const value = Math.round(Number(input.value));
+  const { mediaRetention: current } = await storage.getSettings();
+  if (!Number.isFinite(value) || value < 1 || value > 100) {
+    ui.toast('Elige un número entre 1 y 100.', 'warning');
+    input.value = current;
+    return;
+  }
+  if (value === current) return;
+
+  // Bajar el número borra archivos para siempre: avisar antes de hacerlo.
+  const toPurge = selectRecordsToPurge(await storage.getAllRecords(), value);
+  if (toPurge.length > 0 && !confirm(`Se borrarán ${plural(toPurge.length, 'foto o vídeo antiguo', 'fotos o vídeos antiguos')}. ¿Continuar?`)) {
+    input.value = current;
+    return;
+  }
+  await storage.saveSetting('mediaRetention', value);
+  const purged = await storage.enforceMediaRetention(value);
+  await Promise.all([refreshHistory(), refreshStorageInfo()]);
+  ui.toast(purged ? `Guardado. Archivos antiguos borrados: ${purged}.` : 'Guardado.');
+}
+
+function setupStorage() {
+  $('#btn-persist').addEventListener('click', onPersistClicked);
+  $('#retention-input').addEventListener('change', onRetentionChanged);
+}
+
 // ===== Navegación =====
 
 let currentView = 'home';
@@ -354,7 +426,10 @@ function navigate(view) {
   currentView = view;
   ui.showView(view);
   if (view === 'map') enterMapView();
-  if (view === 'history') refreshHistory();
+  if (view === 'history') {
+    refreshHistory();
+    refreshStorageInfo();
+  }
 }
 
 function setupNavigation() {
@@ -371,6 +446,7 @@ function init() {
   setupLockFlow();
   setupViewer();
   setupHistory();
+  setupStorage();
   refreshStatus();
   // «hace X min» tiene que avanzar solo, y actualizarse al volver a la app desde segundo plano.
   setInterval(refreshStatus, 60 * 1000);

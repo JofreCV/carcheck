@@ -287,7 +287,7 @@ export function renderHistory(records) {
     // Si la precisión es mala ya sale en el aviso; aquí no se repite.
     if (record.location && record.location.accuracy <= POOR_ACCURACY_M) meta.push(`±${record.location.accuracy} m`);
     if (record.media) meta.push(record.media.purged
-      ? `${record.media.type === 'video' ? 'vídeo' : 'foto'} borrado (solo miniatura)`
+      ? `${record.media.type === 'video' ? 'vídeo borrado' : 'foto borrada'} (solo queda la miniatura)`
       : `${record.media.type === 'video' ? '🎥 vídeo' : '📷 foto'} · ${formatBytes(record.media.size)}`);
     const visual = thumbButton(record)
       || `<span class="thumb-placeholder" aria-hidden="true">${record.media?.type === 'video' ? '🎥' : '🔒'}</span>`;
@@ -304,4 +304,28 @@ export function renderHistory(records) {
         <button type="button" class="btn-delete" data-delete-id="${record.id}" aria-label="Borrar registro">🗑️</button>
       </li>`;
   }).join('');
+}
+
+// ===== Almacenamiento =====
+
+/**
+ * @param {{ estimate: {usage:number, quota:number}|null, persisted: boolean, persistSupported: boolean, retention: number }} info
+ */
+export function renderStorageInfo({ estimate, persisted, persistSupported, retention }) {
+  $('#storage-usage').textContent = estimate
+    ? `Usado: ${formatBytes(estimate.usage)} de ${formatBytes(estimate.quota)} disponibles.`
+    : 'Este navegador no informa del espacio usado.';
+
+  const persist = $('#storage-persist');
+  if (persisted) {
+    persist.className = 'persist-ok';
+    persist.textContent = '✅ Datos protegidos: el navegador no los borrará aunque falte espacio.';
+  } else {
+    persist.className = 'persist-warn';
+    persist.textContent = '⚠️ Si el móvil se queda sin espacio, el navegador podría borrar los datos. Instalar la app ayuda a protegerlos.';
+  }
+  $('#btn-persist').hidden = persisted || !persistSupported;
+
+  const input = $('#retention-input');
+  if (document.activeElement !== input) input.value = retention;
 }

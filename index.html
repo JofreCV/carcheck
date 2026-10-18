@@ -42,6 +42,22 @@
     <section id="view-history" class="view" aria-label="Historial" hidden>
       <h2 class="section-title">Historial</h2>
       <ul id="history-list" class="history-list"></ul>
+
+      <section class="card storage-card" aria-labelledby="storage-title">
+        <h2 id="storage-title" class="section-title">Almacenamiento</h2>
+        <p id="storage-usage">Calculando…</p>
+        <p id="storage-persist"></p>
+        <button type="button" id="btn-persist" class="btn block" hidden>🛡️ Pedir que no se borren los datos</button>
+        <label class="field retention-field">
+          <span>Conservar fotos y vídeos de los últimos</span>
+          <span class="retention-row">
+            <input id="retention-input" type="number" min="1" max="100" step="1" inputmode="numeric" required>
+            <span>registros</span>
+          </span>
+        </label>
+        <p class="muted small">De los registros más antiguos se borra el archivo, pero se conservan la hora,
+          la ubicación, la nota y la miniatura.</p>
+      </section>
     </section>
   </main>
 
