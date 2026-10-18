@@ -5,7 +5,8 @@ import * as storage from './storage.js';
 import { createRecord, selectRecordsToPurge, isParked } from './model.js';
 import { plural } from './format.js';
 import { reverseGeocode } from './geocode.js';
-import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters } from './location.js';
+import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters, bearingDegrees } from './location.js';
+import { startCompass } from './compass.js';
 import {
   processPhoto, processVideoFile, isCameraSupported, isInAppRecordingSupported, openRearCamera, stopCamera,
   recordClip, captureVideoFrame, videoInfo, takePhoto, supportsTorch, setTorch, VIDEO_MAX_MS,
@@ -483,6 +484,7 @@ function setupViewer() {
 let mapModule = null;      // se carga la primera vez que se abre la vista (import dinámico)
 let stopWatchingMe = null; // deja de seguir la posición al salir del mapa (ahorra batería)
 let mapEntryId = 0;        // cada entrada al mapa tiene un número; las anteriores se descartan
+let mapCar = null;         // ubicación del coche que muestra el mapa (para la brújula)
 
 async function enterMapView() {
   const entryId = ++mapEntryId;
@@ -504,11 +506,12 @@ async function enterMapView() {
   if (!stillHere()) return;
   // Si el coche ya está recogido no tiene sentido marcar dónde estuvo.
   const car = isParked(record) ? record.location : null;
+  mapCar = car;
   const state = { record, distance: null, me: null, meError: null };
   mapModule.showCar(car);
   mapModule.clearMe();
   mapModule.recenter();
-  ui.setDirectionsLink(car ? mapModule.directionsUrl(car) : null);
+  ui.setCarActions({ directionsUrl: car ? mapModule.directionsUrl(car) : null });
   ui.renderMapInfo(state);
 
   stopWatchingMe?.();
@@ -531,6 +534,44 @@ function leaveMapView() {
   mapEntryId++; // invalida una entrada que aún se esté cargando
   stopWatchingMe?.();
   stopWatchingMe = null;
+}
+
+// ===== Brújula =====
+
+let stopCompassSensors = null;
+
+function openCompass() {
+  if (!mapCar) return;
+  const car = mapCar;
+  const state = { distance: null, bearing: null, heading: null, noCompass: false, meError: null, accuracy: null };
+  const update = () => ui.renderCompass(state);
+  update();
+  $('#compass').showModal();
+
+  const stopGps = watchCurrentPosition(
+    (fix) => {
+      Object.assign(state, {
+        distance: distanceMeters(fix, car), bearing: bearingDegrees(fix, car), accuracy: fix.accuracy, meError: null,
+      });
+      update();
+    },
+    (error) => { state.meError = error; update(); },
+  );
+  const stopHeading = startCompass(
+    (heading) => { state.heading = heading; update(); },
+    () => { state.noCompass = true; update(); },
+  );
+  stopCompassSensors = () => { stopGps(); stopHeading(); };
+}
+
+function setupCompass() {
+  $('#btn-compass').addEventListener('click', openCompass);
+  $('#btn-compass-close').addEventListener('click', () => $('#compass').close());
+  // Al cerrar (✕ o botón atrás) se apagan el GPS y la brújula.
+  $('#compass').addEventListener('close', () => {
+    stopCompassSensors?.();
+    stopCompassSensors = null;
+  });
 }
 
 // ===== Historial =====
@@ -695,6 +736,7 @@ function init() {
   setupViewer();
   setupStatusActions();
   setupEditing();
+  setupCompass();
   setupHistory();
   setupStorage();
   registerServiceWorker();

@@ -7,7 +7,7 @@ import {
   formatRelative, formatClock, formatDuration, formatDistance, formatBytes, describePlace,
   ticketTimeToTimestamp, timestampToTimeInput, formatCountdown,
 } from '../js/format.js';
-import { distanceMeters } from '../js/location.js';
+import { distanceMeters, bearingDegrees } from '../js/location.js';
 import { buildAddress } from '../js/geocode.js';
 
 const tests = [];
@@ -138,6 +138,15 @@ test('distanceMeters (haversine) Tarragona–Reus ≈ 13 km', () => {
   const d = distanceMeters({ lat: 41.1189, lng: 1.2445 }, { lat: 41.1561, lng: 1.1069 });
   assert(d > 12000 && d < 13000, `distancia ${d}`);
   assertEqual(distanceMeters({ lat: 1, lng: 1 }, { lat: 1, lng: 1 }), 0);
+});
+
+test('bearingDegrees: norte, este, sur y oeste', () => {
+  const o = { lat: 41, lng: 1 };
+  const near = (a, b) => Math.abs(a - b) < 0.5;
+  assert(near(bearingDegrees(o, { lat: 41.01, lng: 1 }), 0), 'norte');
+  assert(near(bearingDegrees(o, { lat: 41, lng: 1.01 }), 90), 'este');
+  assert(near(bearingDegrees(o, { lat: 40.99, lng: 1 }), 180), 'sur');
+  assert(near(bearingDegrees(o, { lat: 41, lng: 0.99 }), 270), 'oeste');
 });
 
 test('buildAddress (respuesta de Nominatim)', () => {

@@ -389,7 +389,36 @@ main {
 }
 .map-info { margin: 0; font-weight: 600; }
 .map-info small { display: block; font-weight: 400; color: var(--muted); }
-.map-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+.map-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+
+/* ===== Brújula ===== */
+.compass { background: var(--bg); color: var(--text); }
+.compass::backdrop { background: var(--bg); }
+.compass-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px 16px calc(24px + var(--safe-bottom));
+  text-align: center;
+}
+.compass-distance { margin: 0; font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.compass-dial {
+  display: grid;
+  place-items: center;
+  width: min(72vw, 320px);
+  aspect-ratio: 1;
+  border: 4px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+}
+.compass-arrow { width: 70%; height: 70%; fill: var(--primary); transition: transform 0.25s ease-out; }
+.compass-arrow.waiting { fill: var(--surface-2); }
+.compass-status { margin: 0; font-size: 1.15rem; font-weight: 600; min-height: 1.5em; }
+.compass-hint { margin: 0; max-width: 360px; color: var(--muted); font-size: 0.9rem; }
+.compass .viewer-close { background: var(--surface-2); color: var(--text); }
 .car-marker span {
   display: grid;
   place-items: center;

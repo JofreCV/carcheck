@@ -35,8 +35,9 @@
         <p id="map-info" class="map-info">Cargando mapa…</p>
         <div class="map-actions">
           <button type="button" id="btn-center" class="btn">🎯 Centrar</button>
-          <a id="btn-directions" class="btn primary" target="_blank" rel="noopener" hidden>🚶 Cómo llegar</a>
+          <button type="button" id="btn-compass" class="btn car-action" hidden>🧭 Brújula</button>
         </div>
+        <a id="btn-directions" class="btn primary block car-action" target="_blank" rel="noopener" hidden>🚶 Cómo llegar</a>
       </div>
     </section>
 
@@ -155,6 +156,22 @@
     <div class="camera-actions">
       <button type="button" id="btn-cam-cancel" class="btn">Cancelar</button>
       <button type="button" id="btn-cam-shutter" class="btn shutter-button"></button>
+    </div>
+  </dialog>
+
+  <!-- Brújula: flecha que apunta hacia el coche -->
+  <dialog id="compass" class="fullscreen compass" aria-label="Brújula hacia el coche">
+    <button type="button" id="btn-compass-close" class="viewer-close" aria-label="Cerrar">✕</button>
+    <div class="compass-body">
+      <p id="compass-distance" class="compass-distance">—</p>
+      <div class="compass-dial">
+        <svg id="compass-arrow" class="compass-arrow" viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M50 4 L80 88 L50 70 L20 88 Z"/>
+        </svg>
+      </div>
+      <p id="compass-status" class="compass-status" role="status" aria-live="polite"></p>
+      <p class="compass-hint">Sujeta el móvil plano, con la pantalla hacia arriba. Si la flecha no cuadra,
+        mueve el móvil dibujando un 8 en el aire para calibrar la brújula.</p>
     </div>
   </dialog>
 

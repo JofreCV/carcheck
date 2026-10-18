@@ -373,10 +373,41 @@ export function renderMapInfo({ record, distance, me, meError }) {
   }
 }
 
-export function setDirectionsLink(url) {
-  const link = $('#btn-directions');
-  link.hidden = !url;
-  if (url) link.href = url;
+/** Muestra u oculta las acciones que solo tienen sentido con un coche localizado. */
+export function setCarActions({ directionsUrl }) {
+  for (const el of document.querySelectorAll('.car-action')) el.hidden = !directionsUrl;
+  if (directionsUrl) $('#btn-directions').href = directionsUrl;
+}
+
+// ===== Brújula =====
+
+let arrowRotation = 0; // acumulado, para girar siempre por el camino corto (359° → 1° no da la vuelta)
+
+/**
+ * @param {{ distance: number|null, bearing: number|null, heading: number|null,
+ *           noCompass: boolean, meError: Error|null, accuracy: number|null }} state
+ */
+export function renderCompass({ distance, bearing, heading, noCompass, meError, accuracy }) {
+  const arrow = $('#compass-arrow');
+  const status = $('#compass-status');
+  $('#compass-distance').textContent = distance != null ? formatDistance(distance) : '—';
+
+  // Con brújula la flecha es relativa al móvil; sin ella, se dibuja respecto al norte (arriba).
+  const target = bearing == null ? null : bearing - (noCompass ? 0 : heading ?? 0);
+  const ready = bearing != null && (noCompass || heading != null);
+  arrow.classList.toggle('waiting', !ready);
+  if (target != null) {
+    const delta = ((((target - arrowRotation) % 360) + 540) % 360) - 180;
+    arrowRotation += delta;
+    arrow.style.transform = `rotate(${arrowRotation}deg)`;
+  }
+
+  if (meError) status.textContent = `No se puede saber dónde estás: ${describeLocationError(meError.code)}.`;
+  else if (distance == null) status.textContent = 'Buscando tu posición…';
+  else if (distance < 15) status.textContent = '🎉 Estás al lado de tu coche';
+  else if (noCompass) status.textContent = 'Este móvil no tiene brújula: la flecha indica la dirección con el norte arriba.';
+  else if (heading == null) status.textContent = 'Esperando a la brújula…';
+  else status.textContent = accuracy > 30 ? `Sigue la flecha (GPS ±${accuracy} m, poco preciso)` : 'Sigue la flecha';
 }
 
 // ===== Historial =====

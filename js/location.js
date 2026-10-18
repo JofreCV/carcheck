@@ -120,6 +120,17 @@ export function watchCurrentPosition(onFix, onError) {
   return () => navigator.geolocation.clearWatch(id);
 }
 
+/** Rumbo inicial en grados (0° = norte, 90° = este) para ir de `from` a `to`. */
+export function bearingDegrees(from, to) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const lat1 = toRad(from.lat);
+  const lat2 = toRad(to.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 /** Distancia en metros entre dos puntos {lat, lng} (fórmula del haversine). */
 export function distanceMeters(a, b) {
   const R = 6371000;
