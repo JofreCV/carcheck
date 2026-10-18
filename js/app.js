@@ -439,6 +439,33 @@ function setupNavigation() {
   $('#btn-center').addEventListener('click', () => mapModule?.recenter());
 }
 
+// ===== PWA =====
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.register('./sw.js').catch((error) => console.error('Service Worker:', error));
+
+  // Cuando se instala una versión nueva, recargar para usarla. Si el usuario está a mitad
+  // de algo (hoja de cierre, grabación, visor), se espera a que cierre el diálogo.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // primera instalación: la página ya es la versión actual
+    const reloadWhenIdle = () => {
+      if (document.querySelector('dialog[open]')) setTimeout(reloadWhenIdle, 1000);
+      else location.reload();
+    };
+    reloadWhenIdle();
+  });
+}
+
+/** Accesos directos del icono (manifest «shortcuts»): ?action=lock y ?view=map. */
+function handleLaunchParams() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('view') === 'map') navigate('map');
+  if (params.get('action') === 'lock') openLockSheet();
+  if (location.search) history.replaceState(null, '', location.pathname); // que recargar no lo repita
+}
+
 // ===== Arranque =====
 
 function init() {
@@ -447,7 +474,9 @@ function init() {
   setupViewer();
   setupHistory();
   setupStorage();
+  registerServiceWorker();
   refreshStatus();
+  handleLaunchParams();
   // «hace X min» tiene que avanzar solo, y actualizarse al volver a la app desde segundo plano.
   setInterval(refreshStatus, 60 * 1000);
   document.addEventListener('visibilitychange', () => {
