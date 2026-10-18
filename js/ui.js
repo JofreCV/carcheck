@@ -1,7 +1,10 @@
 // Todo lo que toca el DOM vive aquí, así app.js solo orquesta y es más fácil de leer.
 
-import { formatRelative, formatDateTime, formatClock, formatBytes, formatDistance, describePlace, describeLocationError } from './format.js';
+import {
+  formatRelative, formatDateTime, formatClock, formatDuration, formatBytes, formatDistance, describePlace, describeLocationError,
+} from './format.js';
 import { POOR_ACCURACY_M } from './location.js';
+import { isParked } from './model.js';
 
 export const $ = (selector, root = document) => root.querySelector(selector);
 
@@ -22,11 +25,22 @@ export function showView(name) {
 }
 
 let toastTimer;
-/** Mensaje breve en la parte inferior. type: 'info' | 'warning' | 'error'. */
-export function toast(message, type = 'info', durationMs = 4000) {
+/**
+ * Mensaje breve en la parte inferior. type: 'info' | 'warning' | 'error'.
+ * @param {{ label: string, onClick: () => void }} [action]  botón opcional (p. ej. «Deshacer»)
+ */
+export function toast(message, type = 'info', durationMs = 4000, action = null) {
   const el = $('#toast');
-  el.textContent = message;
   el.className = `toast ${type}`;
+  el.replaceChildren(Object.assign(document.createElement('span'), { textContent: message }));
+  if (action) {
+    const button = Object.assign(document.createElement('button'), { type: 'button', className: 'toast-action', textContent: action.label });
+    button.addEventListener('click', () => {
+      el.hidden = true;
+      action.onClick();
+    });
+    el.append(button);
+  }
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, durationMs);
@@ -89,15 +103,33 @@ export function renderStatus(record) {
   }
 
   const place = describePlace(record);
+
+  // Coche ya recogido: se muestra cuándo, sin la prueba del cierre (ya no es relevante).
+  if (!isParked(record)) {
+    card.className = 'card status-card ended';
+    card.innerHTML = `
+      <div class="status-body">
+        <p class="status-title">🚗 Coche recogido</p>
+        <p class="status-time">${formatRelative(record.endedAt)} <span class="muted">· ${formatClock(record.endedAt)}</span></p>
+        ${place ? `<p class="status-place">Estaba en: ${escapeHtml(place)}</p>` : ''}
+      </div>`;
+    return;
+  }
+
   const accuracy = record.location ? ` <span class="muted">(±${record.location.accuracy} m)</span>` : '';
   card.className = 'card status-card locked';
   card.innerHTML = `
-    ${thumbButton(record)}
-    <div class="status-body">
-      <p class="status-title">Cerrado ✅</p>
-      <p class="status-time">${formatRelative(record.createdAt)} <span class="muted">· ${formatClock(record.createdAt)}</span></p>
-      ${place ? `<p class="status-place">${escapeHtml(place)}${accuracy}</p>` : ''}
-      ${recordWarnings(record).map((w) => `<p class="status-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}
+    <div class="status-main">
+      ${thumbButton(record)}
+      <div class="status-body">
+        <p class="status-title">Cerrado ✅</p>
+        <p class="status-time">${formatRelative(record.createdAt)} <span class="muted">· ${formatClock(record.createdAt)}</span></p>
+        ${place ? `<p class="status-place">${escapeHtml(place)}${accuracy}</p>` : ''}
+        ${recordWarnings(record).map((w) => `<p class="status-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}
+      </div>
+    </div>
+    <div class="status-actions">
+      <button type="button" class="btn" data-action="end-parking" data-record-id="${record.id}">🚗 Lo he recogido</button>
     </div>`;
 }
 
@@ -248,10 +280,16 @@ export function resetRecorder() {
  */
 export function renderMapInfo({ record, distance, me, meError }) {
   const info = $('#map-info');
-  if (!record?.location) {
-    info.innerHTML = record
-      ? '⚠️ El último cierre se guardó sin ubicación.<small>No hay posición del coche que mostrar.</small>'
-      : 'No hay ninguna ubicación guardada.<small>Registra un cierre para verlo aquí.</small>';
+  if (!record) {
+    info.innerHTML = 'No hay ninguna ubicación guardada.<small>Registra un cierre para verlo aquí.</small>';
+    return;
+  }
+  if (!isParked(record)) {
+    info.innerHTML = `No hay ningún coche aparcado.<small>Lo recogiste ${formatRelative(record.endedAt)}.</small>`;
+    return;
+  }
+  if (!record.location) {
+    info.innerHTML = '⚠️ El último cierre se guardó sin ubicación.<small>No hay posición del coche que mostrar.</small>';
     return;
   }
   const when = `Cerrado ${formatRelative(record.createdAt)}${record.note ? ` · ${escapeHtml(record.note)}` : ''}`;
@@ -286,6 +324,7 @@ export function renderHistory(records) {
     const meta = [];
     // Si la precisión es mala ya sale en el aviso; aquí no se repite.
     if (record.location && record.location.accuracy <= POOR_ACCURACY_M) meta.push(`±${record.location.accuracy} m`);
+    if (record.endedAt) meta.push(`recogido ${formatClock(record.endedAt)} (${formatDuration(record.endedAt - record.createdAt)} aparcado)`);
     if (record.media) meta.push(record.media.purged
       ? `${record.media.type === 'video' ? 'vídeo borrado' : 'foto borrada'} (solo queda la miniatura)`
       : `${record.media.type === 'video' ? '🎥 vídeo' : '📷 foto'} · ${formatBytes(record.media.size)}`);
@@ -296,7 +335,7 @@ export function renderHistory(records) {
       <li class="card history-item">
         ${visual}
         <div class="history-body">
-          <p class="history-date">${formatDateTime(record.createdAt)}${index === 0 ? '<span class="tag">Actual</span>' : ''}</p>
+          <p class="history-date">${formatDateTime(record.createdAt)}${index === 0 && isParked(record) ? '<span class="tag">Aparcado</span>' : ''}</p>
           ${place ? `<p class="history-place">${place}</p>` : ''}
           ${meta.length ? `<p class="history-meta">${meta.join(' · ')}</p>` : ''}
           ${recordWarnings(record).map((w) => `<p class="history-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}

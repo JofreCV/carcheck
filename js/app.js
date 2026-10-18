@@ -2,7 +2,7 @@
 
 import * as ui from './ui.js';
 import * as storage from './storage.js';
-import { createRecord, selectRecordsToPurge } from './model.js';
+import { createRecord, selectRecordsToPurge, isParked } from './model.js';
 import { plural } from './format.js';
 import { acquireBestPosition, watchCurrentPosition, distanceMeters } from './location.js';
 import {
@@ -211,7 +211,11 @@ async function saveLockRecord() {
       media: pendingMedia?.info ?? null,
     });
 
+    const previous = await storage.getLatestRecord();
     const { mediaDropped } = await storage.saveRecord(record, pendingMedia?.blob ?? null);
+    // Aparcar de nuevo implica que el aparcamiento anterior terminó: se cierra para que
+    // el historial sea coherente (aparcado desde → recogido hasta).
+    if (isParked(previous)) await storage.updateRecord({ ...previous, endedAt: record.createdAt });
     closeLockSheet();
     navigator.vibrate?.(60); // confirmación táctil: se nota aunque no mires la pantalla
     await refreshStatus();
@@ -248,6 +252,34 @@ function setupLockFlow() {
   $('#btn-rec-toggle').addEventListener('click', onRecordToggle);
   $('#btn-rec-cancel').addEventListener('click', () => $('#recorder').close());
   $('#recorder').addEventListener('close', onRecorderClosed);
+}
+
+// ===== «Lo he recogido» =====
+
+async function onEndParking(recordId) {
+  try {
+    const record = await storage.getRecord(recordId);
+    if (!isParked(record)) return;
+    await storage.updateRecord({ ...record, endedAt: Date.now() });
+    await refreshStatus();
+    ui.toast('🚗 Coche marcado como recogido', 'info', 7000, {
+      label: 'Deshacer',
+      onClick: async () => {
+        await storage.updateRecord({ ...record, endedAt: null });
+        refreshStatus();
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    ui.toast('No se ha podido actualizar el registro.', 'error');
+  }
+}
+
+function setupStatusActions() {
+  $('#status-card').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-action]');
+    if (button?.dataset.action === 'end-parking') onEndParking(button.dataset.recordId);
+  });
 }
 
 // ===== Visor de la prueba (miniaturas de la tarjeta de estado y del historial) =====
@@ -298,7 +330,8 @@ async function enterMapView() {
 
   const record = await storage.getLatestRecord();
   if (!stillHere()) return;
-  const car = record?.location ?? null;
+  // Si el coche ya está recogido no tiene sentido marcar dónde estuvo.
+  const car = isParked(record) ? record.location : null;
   const state = { record, distance: null, me: null, meError: null };
   mapModule.showCar(car);
   mapModule.clearMe();
@@ -485,6 +518,7 @@ function init() {
   setupNavigation();
   setupLockFlow();
   setupViewer();
+  setupStatusActions();
   setupHistory();
   setupStorage();
   registerServiceWorker();

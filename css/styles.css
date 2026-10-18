@@ -127,7 +127,11 @@ main {
 .btn-lock:active { transform: scale(0.98); }
 
 /* ===== Tarjeta de estado ===== */
-.status-card { display: flex; gap: 14px; align-items: center; }
+.status-card { display: flex; flex-direction: column; gap: 14px; }
+.status-main { display: flex; gap: 14px; align-items: center; }
+.status-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.status-actions .btn { flex: 1; min-height: 48px; }
+.status-card.ended .status-title { color: var(--muted); }
 .status-title { margin: 0; font-size: 1.3rem; font-weight: 700; }
 
 /* ===== Barra inferior ===== */
@@ -171,6 +175,18 @@ main {
 }
 .toast.warning { background: var(--warning-bg); color: var(--text); border: 1px solid var(--warning); }
 .toast.error { background: var(--danger); color: #fff; }
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast span { flex: 1; }
+.toast-action {
+  flex: none;
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--primary-text);
+  font-weight: 700;
+}
 
 .status-card .status-body { flex: 1; min-width: 0; }
 .status-card.locked .status-title { color: var(--success); }

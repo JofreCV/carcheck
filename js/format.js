@@ -4,19 +4,25 @@ const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-/** "hace un momento", "hace 5 min", "hace 2 h 14 min", "hace 3 d 4 h" */
-export function formatRelative(timestamp, now = Date.now()) {
-  const diff = Math.max(0, now - timestamp);
-  if (diff < MINUTE) return 'hace un momento';
-  if (diff < HOUR) return `hace ${Math.floor(diff / MINUTE)} min`;
+/** "menos de 1 min", "5 min", "2 h 14 min", "3 d 4 h" */
+export function formatDuration(ms) {
+  const diff = Math.max(0, ms);
+  if (diff < MINUTE) return 'menos de 1 min';
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)} min`;
   if (diff < DAY) {
     const h = Math.floor(diff / HOUR);
     const min = Math.floor((diff % HOUR) / MINUTE);
-    return min ? `hace ${h} h ${min} min` : `hace ${h} h`;
+    return min ? `${h} h ${min} min` : `${h} h`;
   }
   const d = Math.floor(diff / DAY);
   const h = Math.floor((diff % DAY) / HOUR);
-  return h ? `hace ${d} d ${h} h` : `hace ${d} d`;
+  return h ? `${d} d ${h} h` : `${d} d`;
+}
+
+/** "hace un momento", "hace 5 min", "hace 2 h 14 min", "hace 3 d 4 h" */
+export function formatRelative(timestamp, now = Date.now()) {
+  const diff = now - timestamp;
+  return diff < MINUTE ? 'hace un momento' : `hace ${formatDuration(diff)}`;
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat('es-ES', {

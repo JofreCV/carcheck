@@ -2,7 +2,7 @@
 // Está versionado para poder añadir campos sin romper los registros que ya hay en el móvil:
 // cada lectura pasa por migrateRecord(), que actualiza los registros antiguos al formato actual.
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const DEFAULT_VEHICLE_ID = 'default';
 export const DEFAULT_MEDIA_RETENTION = 10;
 
@@ -10,16 +10,27 @@ export const DEFAULT_MEDIA_RETENTION = 10;
 const RECORD_DEFAULTS = {
   vehicleId: DEFAULT_VEHICLE_ID,
   locked: true,
-  location: null,       // { lat, lng, accuracy, capturedAt }
+  location: null,       // { lat, lng, accuracy, capturedAt, source: 'gps' | 'lastKnown' }
   locationError: null,  // 'denied' | 'timeout' | 'unavailable' | 'unsupported' | 'skipped'
   address: null,        // reservado para la geocodificación inversa
   note: '',
   media: null,          // ver createMediaInfo()
+  endedAt: null,        // cuándo se recogió el coche (null = sigue aparcado)
+  ticketExpiresAt: null, // hasta cuándo vale el ticket de zona azul
 };
 
-// Pasos de migración: la clave es la versión de origen.
-// Ejemplo para el futuro: 1: (r) => ({ ...r, ticketExpiresAt: null, schemaVersion: 2 }),
-const MIGRATIONS = {};
+// Pasos de migración: la clave es la versión de origen. Cada paso devuelve el registro
+// en la versión siguiente; migrateRecord los encadena hasta llegar a SCHEMA_VERSION.
+const MIGRATIONS = {
+  // v1 → v2: estado aparcado/recogido, ticket de zona azul y origen de la ubicación.
+  1: (record) => ({
+    ...record,
+    endedAt: record.endedAt ?? null,
+    ticketExpiresAt: record.ticketExpiresAt ?? null,
+    location: record.location ? { source: 'gps', ...record.location } : null,
+    schemaVersion: 2,
+  }),
+};
 
 export function createRecord({ location = null, locationError = null, note = '', media = null, now = Date.now() } = {}) {
   return {
@@ -32,6 +43,11 @@ export function createRecord({ location = null, locationError = null, note = '',
     note: note.trim(),
     media,
   };
+}
+
+/** El coche sigue aparcado en este registro (no se ha marcado como recogido). */
+export function isParked(record) {
+  return Boolean(record) && !record.endedAt;
 }
 
 export function createMediaInfo({ type, mimeType, size, width = null, height = null, durationMs = null, thumbnail = null }) {

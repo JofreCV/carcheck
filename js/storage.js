@@ -102,6 +102,13 @@ export async function saveRecord(record, mediaBlob = null) {
   }
 }
 
+/** Actualiza los datos de un registro existente (sin tocar su archivo multimedia). */
+export async function updateRecord(record) {
+  await withTransaction('records', 'readwrite', (tx) => {
+    tx.objectStore('records').put(record);
+  });
+}
+
 /** Todos los registros, del más reciente al más antiguo. */
 export async function getAllRecords() {
   const records = await withTransaction('records', 'readonly', (tx) =>

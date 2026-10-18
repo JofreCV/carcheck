@@ -1,9 +1,9 @@
 // Mini framework de tests para el navegador: sin node ni dependencias.
 // Resultado visible en la página y en document.title ("PASS n/n" o "FAIL x/n").
 
-import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRecordsToPurge } from '../js/model.js';
+import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRecordsToPurge, isParked } from '../js/model.js';
 import * as storage from '../js/storage.js';
-import { formatRelative, formatClock, formatDistance, formatBytes, describePlace } from '../js/format.js';
+import { formatRelative, formatClock, formatDuration, formatDistance, formatBytes, describePlace } from '../js/format.js';
 import { distanceMeters } from '../js/location.js';
 
 const tests = [];
@@ -37,10 +37,27 @@ test('createRecord descarta locationError si hay ubicación', () => {
 
 test('migrateRecord completa campos ausentes de registros antiguos', () => {
   const r = migrateRecord({ id: 'x', createdAt: 5 });
-  assertEqual(r.schemaVersion, 1);
+  assertEqual(r.schemaVersion, SCHEMA_VERSION);
   assertEqual(r.note, '');
   assertEqual(r.media, null);
   assertEqual(r.vehicleId, 'default');
+});
+
+test('migración v1 → v2: añade endedAt, ticketExpiresAt y location.source', () => {
+  const v1 = { schemaVersion: 1, id: 'a', createdAt: 1, note: 'n', location: { lat: 1, lng: 2, accuracy: 5, capturedAt: 0 } };
+  const r = migrateRecord(v1);
+  assertEqual(r.schemaVersion, 2);
+  assertEqual(r.endedAt, null);
+  assertEqual(r.ticketExpiresAt, null);
+  assertEqual(r.location.source, 'gps');
+  assertEqual(r.note, 'n');
+  assertEqual(migrateRecord({ schemaVersion: 1, id: 'b', createdAt: 1, location: null }).location, null);
+});
+
+test('isParked', () => {
+  assertEqual(isParked(null), false);
+  assertEqual(isParked(createRecord()), true);
+  assertEqual(isParked({ ...createRecord(), endedAt: 123 }), false);
 });
 
 test('migrateRecord respeta los valores existentes', () => {
@@ -77,6 +94,12 @@ test('formatClock: hoy, ayer y fecha completa', () => {
   assertEqual(formatClock(new Date(2026, 9, 18, 18, 32).getTime(), now), 'hoy 18:32');
   assertEqual(formatClock(new Date(2026, 9, 17, 23, 5).getTime(), now), 'ayer 23:05');
   assert(formatClock(new Date(2026, 9, 10, 9, 0).getTime(), now).includes('oct'), 'fecha completa');
+});
+
+test('formatDuration', () => {
+  assertEqual(formatDuration(30e3), 'menos de 1 min');
+  assertEqual(formatDuration(2 * 3600e3 + 5 * 60e3), '2 h 5 min');
+  assertEqual(formatDuration(26 * 3600e3), '1 d 2 h');
 });
 
 test('formatDistance y formatBytes', () => {
@@ -145,6 +168,15 @@ test('storage: la retención borra archivos antiguos pero conserva los datos', a
   assertEqual(all.map((r) => r.media.purged), [false, false, true, true]);
   assertEqual(await storage.getMediaBlob(ids[0]), null);
   assert(await storage.getMediaBlob(ids[3]), 'el más reciente conserva el archivo');
+});
+
+test('storage: updateRecord cambia los datos sin tocar el archivo', async () => {
+  await freshDatabase();
+  const record = createRecord({ media: createMediaInfo({ type: 'photo', mimeType: 'image/jpeg', size: 3 }) });
+  await storage.saveRecord(record, new Blob(['abc']));
+  await storage.updateRecord({ ...record, endedAt: 999 });
+  assertEqual((await storage.getRecord(record.id)).endedAt, 999);
+  assertEqual(await (await storage.getMediaBlob(record.id)).text(), 'abc');
 });
 
 test('storage: ajustes con valores por defecto', async () => {

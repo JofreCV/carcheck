@@ -21,6 +21,7 @@ function toFix(position) {
     lng: position.coords.longitude,
     accuracy: Math.round(position.coords.accuracy),
     capturedAt: position.timestamp,
+    source: 'gps',
   };
 }
 
