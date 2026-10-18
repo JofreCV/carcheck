@@ -3,6 +3,7 @@
 // principal arranca rápido sin tener que leer los ~400 KB de Leaflet.
 
 import { map as createMap, tileLayer, marker, divIcon, circle, circleMarker, latLngBounds } from '../vendor/leaflet/leaflet-src.esm.js';
+import { TILE_URL } from './offline-tiles.js';
 
 const DEFAULT_VIEW = { center: [40.4168, -3.7038], zoom: 5 }; // España, mientras no hay posiciones
 
@@ -32,7 +33,7 @@ export function ensureMap(container) {
   map.attributionControl.setPosition('topright'); // abajo quedaría tapada por el panel
   container.addEventListener('pointerdown', () => { autoFit = false; });
   container.addEventListener('wheel', () => { autoFit = false; }, { passive: true });
-  tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  tileLayer(TILE_URL, {
     maxZoom: 19,
     // crossOrigin hace que las teselas lleguen como respuestas CORS: el Service Worker puede
     // cachearlas sin que cuenten como respuestas "opacas" (que Chrome contabiliza como ~7 MB cada una).
@@ -88,7 +89,8 @@ function fitToMarkers() {
   if (points.length === 0) return;
   if (points.length === 1) map.setView(points[0], 17);
   // Más margen abajo porque el panel con la distancia tapa esa parte del mapa.
-  else map.fitBounds(latLngBounds(points), { paddingTopLeft: [48, 64], paddingBottomRight: [48, 200], maxZoom: 18 });
+  // maxZoom 17: es el zoom máximo de las teselas que se descargan al aparcar (offline-tiles.js).
+  else map.fitBounds(latLngBounds(points), { paddingTopLeft: [48, 64], paddingBottomRight: [48, 260], maxZoom: 17 });
 }
 
 /** Enlace de Google Maps con la ruta a pie hasta el coche (abre la app en Android). */

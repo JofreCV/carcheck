@@ -5,6 +5,7 @@ import * as storage from './storage.js';
 import { createRecord, selectRecordsToPurge, isParked } from './model.js';
 import { plural } from './format.js';
 import { reverseGeocode } from './geocode.js';
+import { prefetchParkingTiles } from './offline-tiles.js';
 import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters, bearingDegrees } from './location.js';
 import { startCompass } from './compass.js';
 import {
@@ -271,7 +272,7 @@ async function saveLockRecord() {
     closeLockSheet();
     navigator.vibrate?.(60); // confirmación táctil: se nota aunque no mires la pantalla
     await refreshStatus();
-    afterSaveHousekeeping();
+    afterSaveHousekeeping(record);
     if (mediaDropped) ui.toast('Almacenamiento lleno: se ha guardado el cierre sin la foto/vídeo.', 'warning', 6000);
     else ui.toast(fix ? '🔒 Cierre guardado' : '🔒 Cierre guardado sin ubicación', fix ? 'info' : 'warning');
   } catch (error) {
@@ -609,8 +610,12 @@ function setupHistory() {
 
 // ===== Almacenamiento =====
 
-/** Tras guardar: pedir almacenamiento persistente y aplicar la retención de multimedia. */
-async function afterSaveHousekeeping() {
+/**
+ * Tareas en segundo plano tras guardar: almacenamiento persistente, retención de multimedia,
+ * dirección de la calle y teselas del mapa de la zona (para usarlo luego sin datos).
+ */
+async function afterSaveHousekeeping(record) {
+  if (record.location && navigator.onLine) prefetchParkingTiles(record.location).catch(console.warn);
   try {
     // Chrome concede (o no) la persistencia sin preguntar, según lo que se use la web;
     // pedirlo justo después de guardar algo importante es el mejor momento.

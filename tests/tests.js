@@ -9,6 +9,7 @@ import {
 } from '../js/format.js';
 import { distanceMeters, bearingDegrees } from '../js/location.js';
 import { buildAddress } from '../js/geocode.js';
+import { tileFor, tilesAround, tileUrl } from '../js/offline-tiles.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -147,6 +148,15 @@ test('bearingDegrees: norte, este, sur y oeste', () => {
   assert(near(bearingDegrees(o, { lat: 41, lng: 1.01 }), 90), 'este');
   assert(near(bearingDegrees(o, { lat: 40.99, lng: 1 }), 180), 'sur');
   assert(near(bearingDegrees(o, { lat: 41, lng: 0.99 }), 270), 'oeste');
+});
+
+test('tileFor y tilesAround (teselas de OSM)', () => {
+  assertEqual(tileFor(0, 0, 1), { z: 1, x: 1, y: 1 });
+  assertEqual(tileFor(85, -180, 2), { z: 2, x: 0, y: 0 });
+  const around = tilesAround(41.1189, 1.2445, 17, 1);
+  assertEqual(around.length, 9);
+  assertEqual(around[4], tileFor(41.1189, 1.2445, 17), 'la central está en medio:');
+  assertEqual(tileUrl({ z: 3, x: 4, y: 5 }), 'https://tile.openstreetmap.org/3/4/5.png');
 });
 
 test('buildAddress (respuesta de Nominatim)', () => {

@@ -26,6 +26,7 @@ const SHELL_FILES = [
   './js/map.js',
   './js/geocode.js',
   './js/compass.js',
+  './js/offline-tiles.js',
   './vendor/leaflet/leaflet.css',
   './vendor/leaflet/leaflet-src.esm.js',
   './icons/icon.svg',
@@ -101,7 +102,9 @@ async function networkFirstTile(request) {
     }
     return response;
   } catch {
-    return (await cache.match(request)) ?? Response.error();
+    // Sin red: la copia de las teselas vistas o la de la zona del coche (carcheck-tiles-parking).
+    // ignoreVary: la petición de Leaflet y la de la precarga no tienen las mismas cabeceras.
+    return (await caches.match(request, { ignoreVary: true })) ?? Response.error();
   }
 }
 
