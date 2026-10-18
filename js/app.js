@@ -7,8 +7,8 @@ import { plural } from './format.js';
 import { reverseGeocode } from './geocode.js';
 import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters } from './location.js';
 import {
-  processPhoto, processVideoFile, isInAppRecordingSupported, openRearCamera, stopCamera,
-  recordClip, captureVideoFrame, videoInfo, VIDEO_MAX_MS,
+  processPhoto, processVideoFile, isCameraSupported, isInAppRecordingSupported, openRearCamera, stopCamera,
+  recordClip, captureVideoFrame, videoInfo, takePhoto, supportsTorch, setTorch, VIDEO_MAX_MS,
 } from './media.js';
 
 const { $ } = ui;
@@ -114,29 +114,67 @@ function setPendingMedia(media) {
   ui.renderProofPreview(media);
 }
 
-// ----- Prueba visual: vídeo -----
+// ----- Cámara dentro de la app (foto y vídeo) -----
 
-let camera = null;             // MediaStream de la cámara trasera mientras el grabador está abierto
-let recording = null;          // { done, stop } de la grabación en curso
-let useVideoFallback = false;  // tras un fallo de cámara se usa la cámara del sistema
+let camera = null;      // MediaStream de la cámara trasera mientras el diálogo está abierto
+let cameraMode = null;  // 'photo' | 'video'
+let torchOn = false;
+let recording = null;   // { done, stop } de la grabación en curso
+// Tras un fallo de cámara (p. ej. permiso denegado) se usa la cámara del sistema con <input capture>.
+const useSystemCamera = { photo: false, video: false };
 
-async function onVideoClicked() {
-  if (useVideoFallback || !isInAppRecordingSupported()) {
-    $('#video-input').click();
+const CAMERA_LABELS = { photo: '📷 Foto', video: '🎥 Vídeo' };
+
+/** @param {'photo'|'video'} mode */
+async function openCamera(mode) {
+  const supported = mode === 'photo' ? isCameraSupported() : isInAppRecordingSupported();
+  if (useSystemCamera[mode] || !supported) {
+    $(mode === 'photo' ? '#photo-input' : '#video-input').click();
     return;
   }
   try {
-    camera = await openRearCamera();
+    camera = await openRearCamera({ highRes: mode === 'photo' });
   } catch (error) {
     console.error(error);
     // No abrimos aquí el input directamente: tras el diálogo de permisos Chrome puede
     // bloquear el click por haber pasado demasiado tiempo desde que el usuario pulsó.
-    useVideoFallback = true;
-    const reason = error.code === 'denied' ? 'Sin permiso de cámara.' : 'No se puede grabar dentro de la app.';
-    ui.toast(`${reason} Pulsa 🎥 Vídeo otra vez para usar la cámara del móvil.`, 'warning', 7000);
+    useSystemCamera[mode] = true;
+    const reason = error.code === 'denied' ? 'Sin permiso de cámara.' : 'No se puede usar la cámara dentro de la app.';
+    ui.toast(`${reason} Pulsa ${CAMERA_LABELS[mode]} otra vez para usar la cámara del móvil.`, 'warning', 7000);
     return;
   }
-  ui.showRecorder(camera);
+  cameraMode = mode;
+  torchOn = false;
+  ui.showCamera(camera, mode, supportsTorch(camera));
+}
+
+function onShutter() {
+  if (cameraMode === 'photo') onTakePhoto();
+  else onRecordToggle();
+}
+
+async function onTakePhoto() {
+  ui.renderCamera('processing');
+  try {
+    const photo = await takePhoto(camera, $('#camera-preview'));
+    $('#camera').close();
+    await processMedia(processPhoto(photo), 'Procesando foto…', 'No se ha podido procesar la foto. Puedes guardar sin ella.');
+  } catch (error) {
+    console.error(error);
+    $('#camera').close();
+    ui.toast('No se ha podido hacer la foto. Puedes intentarlo otra vez o guardar sin ella.', 'warning', 6000);
+  }
+}
+
+async function onTorchToggle() {
+  try {
+    await setTorch(camera, !torchOn);
+    torchOn = !torchOn;
+    ui.setTorchButton(torchOn);
+  } catch (error) {
+    console.error(error);
+    ui.toast('No se ha podido encender la linterna.', 'warning');
+  }
 }
 
 function onRecordToggle() {
@@ -144,37 +182,38 @@ function onRecordToggle() {
     recording.stop(); // parada manual antes de los 5 s
     return;
   }
-  const current = recordClip(camera, { onTick: (remainingMs) => ui.renderRecorder('recording', remainingMs) });
+  const current = recordClip(camera, { onTick: (remainingMs) => ui.renderCamera('recording', remainingMs) });
   recording = current;
-  ui.renderRecorder('recording', VIDEO_MAX_MS);
+  ui.renderCamera('recording', VIDEO_MAX_MS);
 
   current.done
     .then(async ({ blob, durationMs }) => {
       if (recording !== current) return; // se canceló
-      ui.renderRecorder('processing');
+      ui.renderCamera('processing');
       // La miniatura se saca de la vista previa, que sigue mostrando la cámara en directo.
-      const preview = $('#recorder-preview');
+      const preview = $('#camera-preview');
       const thumbnail = await captureVideoFrame(preview).catch(() => null);
       const info = videoInfo(blob, { durationMs, width: preview.videoWidth, height: preview.videoHeight, thumbnail });
       setPendingMedia({ blob, info });
-      $('#recorder').close();
+      $('#camera').close();
     })
     .catch((error) => {
       if (recording !== current) return;
       console.error(error);
-      $('#recorder').close();
+      $('#camera').close();
       ui.toast('Ha fallado la grabación. Puedes intentarlo otra vez o guardar sin vídeo.', 'warning', 6000);
     });
 }
 
-// Se llama al cerrar el grabador de cualquier forma: siempre se libera la cámara.
-function onRecorderClosed() {
+// Se llama al cerrar la cámara de cualquier forma: siempre se libera (y se apaga la linterna).
+function onCameraClosed() {
   const current = recording;
   recording = null; // marca la grabación como cancelada si aún no había terminado
   current?.stop();
   stopCamera(camera);
   camera = null;
-  ui.resetRecorder();
+  cameraMode = null;
+  ui.resetCamera();
 }
 
 async function onVideoChosen(event) {
@@ -257,15 +296,16 @@ function setupLockFlow() {
   // con la última ubicación conocida (gpsSettled) en vez de guardar sin nada.
   $('#btn-save-now').addEventListener('click', () => gps?.stop());
 
-  $('#btn-photo').addEventListener('click', () => $('#photo-input').click());
+  $('#btn-photo').addEventListener('click', () => openCamera('photo'));
+  $('#btn-video').addEventListener('click', () => openCamera('video'));
   $('#photo-input').addEventListener('change', onPhotoChosen);
+  $('#video-input').addEventListener('change', onVideoChosen);
   $('#btn-proof-remove').addEventListener('click', () => setPendingMedia(null));
 
-  $('#btn-video').addEventListener('click', onVideoClicked);
-  $('#video-input').addEventListener('change', onVideoChosen);
-  $('#btn-rec-toggle').addEventListener('click', onRecordToggle);
-  $('#btn-rec-cancel').addEventListener('click', () => $('#recorder').close());
-  $('#recorder').addEventListener('close', onRecorderClosed);
+  $('#btn-cam-shutter').addEventListener('click', onShutter);
+  $('#btn-torch').addEventListener('click', onTorchToggle);
+  $('#btn-cam-cancel').addEventListener('click', () => $('#camera').close());
+  $('#camera').addEventListener('close', onCameraClosed);
 }
 
 // ===== Dirección (geocodificación inversa) =====

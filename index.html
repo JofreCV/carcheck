@@ -87,9 +87,9 @@
           <span id="proof-info"></span>
           <button type="button" id="btn-proof-remove" class="btn">✕ Quitar</button>
         </div>
-        <!-- En Android, capture="environment" abre directamente la cámara trasera -->
+        <!-- Fallback si no se puede usar la cámara dentro de la app (sin permiso o sin soporte):
+             capture="environment" abre la cámara trasera del sistema -->
         <input type="file" id="photo-input" accept="image/*" capture="environment" hidden>
-        <!-- Fallback si no se puede grabar dentro de la app (sin MediaRecorder o sin permiso) -->
         <input type="file" id="video-input" accept="video/*" capture="environment" hidden>
       </div>
 
@@ -146,14 +146,15 @@
     </form>
   </dialog>
 
-  <!-- Grabador de vídeo: vista previa de la cámara trasera, cuenta atrás de 5 s -->
-  <dialog id="recorder" class="fullscreen recorder" aria-label="Grabar vídeo">
-    <video id="recorder-preview" autoplay muted playsinline></video>
-    <div id="recorder-countdown" class="recorder-countdown" hidden></div>
-    <p id="recorder-hint" class="recorder-hint"></p>
-    <div class="recorder-actions">
-      <button type="button" id="btn-rec-cancel" class="btn">Cancelar</button>
-      <button type="button" id="btn-rec-toggle" class="btn rec-button"></button>
+  <!-- Cámara dentro de la app: foto, o vídeo con cuenta atrás de 5 s -->
+  <dialog id="camera" class="fullscreen camera" aria-label="Cámara">
+    <video id="camera-preview" autoplay muted playsinline></video>
+    <button type="button" id="btn-torch" class="torch-button" aria-pressed="false" hidden>🔦</button>
+    <div id="camera-countdown" class="camera-countdown" hidden></div>
+    <p id="camera-hint" class="camera-hint"></p>
+    <div class="camera-actions">
+      <button type="button" id="btn-cam-cancel" class="btn">Cancelar</button>
+      <button type="button" id="btn-cam-shutter" class="btn shutter-button"></button>
     </div>
   </dialog>
 

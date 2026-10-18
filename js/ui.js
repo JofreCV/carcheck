@@ -300,36 +300,47 @@ export function showSaveNow(visible) {
   $('#btn-save-now').hidden = !visible;
 }
 
-// ===== Grabador de vídeo =====
+// ===== Cámara (foto y vídeo) =====
 
-export function showRecorder(stream) {
-  $('#recorder-preview').srcObject = stream;
-  renderRecorder('ready');
-  $('#recorder').showModal();
+/** @param {'photo'|'video'} mode */
+export function showCamera(stream, mode, torchAvailable) {
+  $('#camera').dataset.mode = mode;
+  $('#camera-preview').srcObject = stream;
+  $('#btn-torch').hidden = !torchAvailable;
+  setTorchButton(false);
+  renderCamera('ready');
+  $('#camera').showModal();
 }
 
-/** state: 'ready' (encuadrando) | 'recording' | 'processing' */
-export function renderRecorder(state, remainingMs = 0) {
-  const toggle = $('#btn-rec-toggle');
-  const countdown = $('#recorder-countdown');
-  const hint = $('#recorder-hint');
+/** state: 'ready' (encuadrando) | 'recording' (solo vídeo) | 'processing' */
+export function renderCamera(state, remainingMs = 0) {
+  const isPhoto = $('#camera').dataset.mode === 'photo';
+  const shutter = $('#btn-cam-shutter');
+  const countdown = $('#camera-countdown');
+  const hint = $('#camera-hint');
   countdown.hidden = state !== 'recording';
-  toggle.disabled = state === 'processing';
+  shutter.disabled = state === 'processing';
   if (state === 'ready') {
-    toggle.textContent = '⏺ Grabar';
-    hint.textContent = 'Encuadra la manija y pulsa Grabar (máx. 5 s).';
+    shutter.textContent = isPhoto ? '📸 Hacer foto' : '⏺ Grabar';
+    hint.textContent = isPhoto ? 'Encuadra el coche cerrado o la plaza.' : 'Encuadra la manija y pulsa Grabar (máx. 5 s).';
   } else if (state === 'recording') {
-    toggle.textContent = '⏹ Parar';
+    shutter.textContent = '⏹ Parar';
     countdown.textContent = `● ${Math.ceil(remainingMs / 1000)}`;
     hint.textContent = 'Grabando… se para solo a los 5 s.';
   } else {
-    toggle.textContent = 'Procesando…';
+    shutter.textContent = 'Procesando…';
     hint.textContent = '';
   }
 }
 
-export function resetRecorder() {
-  $('#recorder-preview').srcObject = null;
+export function setTorchButton(on) {
+  const button = $('#btn-torch');
+  button.setAttribute('aria-pressed', String(on));
+  button.setAttribute('aria-label', on ? 'Apagar linterna' : 'Encender linterna');
+}
+
+export function resetCamera() {
+  $('#camera-preview').srcObject = null;
 }
 
 // ===== Vista del mapa =====

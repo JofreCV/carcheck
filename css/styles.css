@@ -324,9 +324,22 @@ main {
 }
 
 /* ===== Grabador de vídeo ===== */
-.recorder { overflow: hidden; }
-.recorder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.recorder-countdown {
+.camera { overflow: hidden; }
+.camera video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.torch-button {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  z-index: 1;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.45);
+  font-size: 1.5rem;
+}
+.torch-button[aria-pressed="true"] { background: #facc15; }
+.camera-countdown {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
   left: 50%;
@@ -339,7 +352,7 @@ main {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.recorder-hint {
+.camera-hint {
   position: absolute;
   left: 16px;
   right: 16px;
@@ -348,7 +361,7 @@ main {
   text-align: center;
   text-shadow: 0 1px 4px #000;
 }
-.recorder-actions {
+.camera-actions {
   position: absolute;
   left: 16px;
   right: 16px;
@@ -357,8 +370,9 @@ main {
   grid-template-columns: 1fr 2fr;
   gap: 10px;
 }
-.recorder-actions .btn { min-height: 64px; border: 0; }
-.rec-button { background: #dc2626; color: #fff; font-size: 1.15rem; }
+.camera-actions .btn { min-height: 64px; border: 0; }
+.shutter-button { background: #dc2626; color: #fff; font-size: 1.15rem; }
+.camera[data-mode="photo"] .shutter-button { background: #fff; color: #111; }
 
 /* ===== Mapa ===== */
 .view-map { position: relative; height: 100%; padding: 0; gap: 0; }

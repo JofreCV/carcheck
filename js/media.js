@@ -36,8 +36,8 @@ async function renderJpeg(source, sourceWidth, sourceHeight, maxSide, quality) {
 }
 
 /**
- * Comprime una foto de la cámara (~1280 px, JPEG) y genera su miniatura.
- * @param {File} file  la foto que devuelve <input type="file" capture>
+ * Comprime una foto (~1280 px, JPEG) y genera su miniatura.
+ * @param {Blob} file  la foto de la cámara de la app o la que devuelve <input type="file" capture>
  * @returns {{ blob: Blob, info: object }}  info es el campo `media` del registro
  */
 export async function processPhoto(file) {
@@ -74,19 +74,31 @@ const VIDEO_BITS_PER_SECOND = 1_000_000; // ~1 Mbps: un clip de 5 s ocupa unos 6
 // Por orden de preferencia: Chrome Android graba en WebM; MP4 como último recurso.
 const VIDEO_MIME_CANDIDATES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
 
+export function isCameraSupported() {
+  return Boolean(navigator.mediaDevices?.getUserMedia);
+}
+
 export function isInAppRecordingSupported() {
-  return 'MediaRecorder' in window && Boolean(navigator.mediaDevices?.getUserMedia);
+  return 'MediaRecorder' in window && isCameraSupported();
 }
 
 function pickVideoMimeType() {
   return VIDEO_MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
 }
 
-/** Abre la cámara trasera a resolución moderada (≤720p) y sin audio. */
-export async function openRearCamera() {
+/**
+ * Abre la cámara trasera sin audio. Para vídeo, resolución moderada (≤720p) para que ocupe poco;
+ * para foto (highRes), algo más, porque luego se comprime igualmente a 1280 px.
+ */
+export async function openRearCamera({ highRes = false } = {}) {
   try {
     return await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: highRes ? 1920 : 1280 },
+        height: { ideal: highRes ? 1080 : 720 },
+        frameRate: { ideal: 30 },
+      },
       audio: false,
     });
   } catch (error) {
@@ -97,6 +109,40 @@ export async function openRearCamera() {
 
 export function stopCamera(stream) {
   stream?.getTracks().forEach((track) => track.stop());
+}
+
+/** ¿La cámara tiene linterna controlable? (Chrome Android en la mayoría de móviles) */
+export function supportsTorch(stream) {
+  const track = stream?.getVideoTracks()[0];
+  return Boolean(track?.getCapabilities?.().torch);
+}
+
+export function setTorch(stream, on) {
+  return stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: on }] });
+}
+
+/**
+ * Hace una foto con la cámara abierta. ImageCapture.takePhoto() usa la resolución completa
+ * del sensor; si no existe o falla, se usa el fotograma que se ve en la vista previa.
+ * @returns {Promise<Blob>} la foto sin comprimir (luego pasa por processPhoto)
+ */
+export async function takePhoto(stream, previewVideo) {
+  const track = stream.getVideoTracks()[0];
+  if ('ImageCapture' in window && track) {
+    try {
+      return await new ImageCapture(track).takePhoto();
+    } catch (error) {
+      console.warn('takePhoto no ha funcionado; se usa el fotograma de la vista previa', error);
+    }
+  }
+  if (!previewVideo.videoWidth) throw new CaptureError('processing', 'La cámara aún no muestra imagen');
+  const canvas = document.createElement('canvas');
+  canvas.width = previewVideo.videoWidth;
+  canvas.height = previewVideo.videoHeight;
+  canvas.getContext('2d').drawImage(previewVideo, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+  if (!blob) throw new CaptureError('processing', 'No se ha podido capturar la foto');
+  return blob;
 }
 
 /**
