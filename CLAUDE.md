@@ -39,9 +39,10 @@ Usuario: Jofre, estudiante de Ingeniería Informática.
 
 ## Modelo de datos (IndexedDB `carcheck`)
 - `records` (keyPath `id`, índice `createdAt`): `{ schemaVersion, id, vehicleId, createdAt, locked, location, locationError, address, note, media }`.
+  - `location`: `null` o `{ lat, lng, accuracy, capturedAt }`. `locationError`: `null` | `denied` | `timeout` | `unavailable` | `unsupported` | `skipped` (se guardó sin esperar al GPS).
   - `media`: `null` o `{ type: "photo"|"video", mimeType, size, width, height, durationMs, thumbnail: Blob, purged }`.
 - `media` (keyPath `recordId`): `{ recordId, blob }`. El archivo grande va aparte para que listar no cargue vídeos y para que purgar consista en borrar una fila.
-- `settings` (clave/valor): `mediaRetention` (por defecto 10).
+- `settings` (clave/valor): `mediaRetention` (por defecto 10). La retención conserva el archivo de los N registros **con multimedia** más recientes; de los demás borra el blob y marca `media.purged = true` (la miniatura se queda).
 - **Para añadir campos:** sube `SCHEMA_VERSION` en `model.js` y añade un paso en `MIGRATIONS`. Si cambian los stores o índices, sube `DB_VERSION` en `storage.js` y añade un `case` en `onupgradeneeded`, sin `break`.
 
 ## Convenciones
@@ -51,10 +52,14 @@ Usuario: Jofre, estudiante de Ingeniería Informática.
 - Cada operación que pueda fallar (GPS, cámara, grabación, cuota) tiene que dejar guardar el registro igualmente, aunque sea sin coordenadas o sin multimedia.
 - **Cada vez que cambie un archivo del app shell, sube `CACHE_VERSION` en `sw.js`** y, si añades archivos, inclúyelos en `SHELL_FILES`.
 - Un commit por funcionalidad, con mensajes descriptivos.
+- `map.js` (y Leaflet) se cargan con `import()` al abrir el mapa; no importarlo de forma estática desde `app.js`.
+- Accesos directos del manifest: `?action=lock` abre la hoja de cierre y `?view=map` abre el mapa (`handleLaunchParams` en `app.js`).
+- Cuando se instala un Service Worker nuevo, la página se recarga sola, pero espera a que no haya ningún `<dialog>` abierto.
 
 ## Desarrollo y pruebas
 - `powershell -ExecutionPolicy Bypass -File tools/dev.ps1` levanta el servidor en `http://localhost:8080` y un túnel de cloudflared que imprime la URL `https://….trycloudflare.com` para abrirla en el móvil.
-- Tests: abre `http://localhost:8080/tests/` (o en headless: `chrome --headless --virtual-time-budget=10000 --dump-dom http://localhost:8080/tests/`).
+- Tests unitarios y de IndexedDB: abre `http://localhost:8080/tests/`. Al terminar, la página envía un informe en texto a `POST /__report` del devserver (se escribe en `tools/.test-report`), y así se pueden ejecutar en Chrome headless y leer el resultado desde la terminal.
+- Pruebas E2E: Chrome headless controlado por el DevTools Protocol (geolocalización simulada, `--use-fake-device-for-media-stream` para la cámara, `Network.emulateNetworkConditions` para el modo offline). **El perfil de Chrome tiene que estar en una ruta corta** (p. ej. `%TEMP%\cc-carcheck`): con rutas largas, CacheStorage falla con «Unexpected internal error» y el Service Worker no se instala.
 - Herramientas instaladas en Windows: cloudflared (`C:\Program Files (x86)\cloudflared\`), gh (`C:\Program Files\GitHub CLI\`), Python 3.13.
 
 ## Ideas futuras (la arquitectura ya está preparada)
