@@ -313,6 +313,37 @@ function leaveMapView() {
   stopWatchingMe = null;
 }
 
+// ===== Historial =====
+
+async function refreshHistory() {
+  try {
+    ui.renderHistory(await storage.getAllRecords());
+  } catch (error) {
+    console.error(error);
+    ui.toast('No se ha podido leer el historial.', 'error');
+  }
+}
+
+async function onDeleteRecord(recordId) {
+  if (!confirm('¿Borrar este registro? También se borrará su foto o vídeo.')) return;
+  try {
+    await storage.deleteRecord(recordId);
+    ui.forgetThumb(recordId);
+    await Promise.all([refreshHistory(), refreshStatus()]);
+    ui.toast('Registro borrado');
+  } catch (error) {
+    console.error(error);
+    ui.toast('No se ha podido borrar el registro.', 'error');
+  }
+}
+
+function setupHistory() {
+  $('#history-list').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delete-id]');
+    if (button) onDeleteRecord(button.dataset.deleteId);
+  });
+}
+
 // ===== Navegación =====
 
 let currentView = 'home';
@@ -323,6 +354,7 @@ function navigate(view) {
   currentView = view;
   ui.showView(view);
   if (view === 'map') enterMapView();
+  if (view === 'history') refreshHistory();
 }
 
 function setupNavigation() {
@@ -338,6 +370,7 @@ function init() {
   setupNavigation();
   setupLockFlow();
   setupViewer();
+  setupHistory();
   refreshStatus();
   // «hace X min» tiene que avanzar solo, y actualizarse al volver a la app desde segundo plano.
   setInterval(refreshStatus, 60 * 1000);

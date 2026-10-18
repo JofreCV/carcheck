@@ -269,3 +269,39 @@ export function setDirectionsLink(url) {
   link.hidden = !url;
   if (url) link.href = url;
 }
+
+// ===== Historial =====
+
+export function renderHistory(records) {
+  const list = $('#history-list');
+  if (records.length === 0) {
+    list.innerHTML = '<li class="empty">Todavía no hay registros.</li>';
+    return;
+  }
+  list.innerHTML = records.map((record, index) => {
+    const place = record.location
+      ? `<a href="https://www.google.com/maps/search/?api=1&query=${record.location.lat},${record.location.lng}"
+            target="_blank" rel="noopener">${escapeHtml(describePlace(record))}</a>`
+      : escapeHtml(record.note);
+    const meta = [];
+    // Si la precisión es mala ya sale en el aviso; aquí no se repite.
+    if (record.location && record.location.accuracy <= POOR_ACCURACY_M) meta.push(`±${record.location.accuracy} m`);
+    if (record.media) meta.push(record.media.purged
+      ? `${record.media.type === 'video' ? 'vídeo' : 'foto'} borrado (solo miniatura)`
+      : `${record.media.type === 'video' ? '🎥 vídeo' : '📷 foto'} · ${formatBytes(record.media.size)}`);
+    const visual = thumbButton(record)
+      || `<span class="thumb-placeholder" aria-hidden="true">${record.media?.type === 'video' ? '🎥' : '🔒'}</span>`;
+
+    return `
+      <li class="card history-item">
+        ${visual}
+        <div class="history-body">
+          <p class="history-date">${formatDateTime(record.createdAt)}${index === 0 ? '<span class="tag">Actual</span>' : ''}</p>
+          ${place ? `<p class="history-place">${place}</p>` : ''}
+          ${meta.length ? `<p class="history-meta">${meta.join(' · ')}</p>` : ''}
+          ${recordWarnings(record).map((w) => `<p class="history-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}
+        </div>
+        <button type="button" class="btn-delete" data-delete-id="${record.id}" aria-label="Borrar registro">🗑️</button>
+      </li>`;
+  }).join('');
+}
