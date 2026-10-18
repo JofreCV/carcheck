@@ -35,6 +35,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
+    def do_POST(self):
+        # /__report: la página de tests manda aquí sus resultados para poder leerlos
+        # desde la terminal cuando se ejecutan en Chrome headless.
+        if self.path != "/__report":
+            self.send_error(404)
+            return
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        with open(os.path.join(ROOT, "tools", ".test-report"), "wb") as f:
+            f.write(body)
+        self.send_response(204)
+        self.end_headers()
+
 
 if __name__ == "__main__":
     with http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler) as server:

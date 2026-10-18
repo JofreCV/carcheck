@@ -1,0 +1,145 @@
+// Mini framework de tests para el navegador: sin node ni dependencias.
+// Resultado visible en la página y en document.title ("PASS n/n" o "FAIL x/n").
+
+import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRecordsToPurge } from '../js/model.js';
+import * as storage from '../js/storage.js';
+
+const tests = [];
+const test = (name, fn) => tests.push({ name, fn });
+
+function assert(condition, message = 'la condición es falsa') {
+  if (!condition) throw new Error(message);
+}
+function assertEqual(actual, expected, message = '') {
+  const a = JSON.stringify(actual);
+  const e = JSON.stringify(expected);
+  if (a !== e) throw new Error(`${message} esperado ${e}, obtenido ${a}`);
+}
+
+// ===== model.js =====
+
+test('createRecord rellena los campos obligatorios', () => {
+  const r = createRecord({ note: '  Planta -2  ', now: 1000 });
+  assertEqual(r.schemaVersion, SCHEMA_VERSION);
+  assertEqual(r.createdAt, 1000);
+  assertEqual(r.locked, true);
+  assertEqual(r.note, 'Planta -2', 'la nota se recorta:');
+  assertEqual(r.vehicleId, 'default');
+  assert(typeof r.id === 'string' && r.id.length > 10, 'id generado');
+});
+
+test('createRecord descarta locationError si hay ubicación', () => {
+  const r = createRecord({ location: { lat: 1, lng: 2, accuracy: 5, capturedAt: 0 }, locationError: 'timeout' });
+  assertEqual(r.locationError, null);
+});
+
+test('migrateRecord completa campos ausentes de registros antiguos', () => {
+  const r = migrateRecord({ id: 'x', createdAt: 5 });
+  assertEqual(r.schemaVersion, 1);
+  assertEqual(r.note, '');
+  assertEqual(r.media, null);
+  assertEqual(r.vehicleId, 'default');
+});
+
+test('migrateRecord respeta los valores existentes', () => {
+  const r = migrateRecord({ id: 'x', createdAt: 5, schemaVersion: 1, note: 'hola' });
+  assertEqual(r.note, 'hola');
+});
+
+const withMedia = (id, purged = false) => ({ id, media: { ...createMediaInfo({ type: 'photo', mimeType: 'image/jpeg', size: 1 }), purged } });
+
+test('selectRecordsToPurge conserva los N más recientes con multimedia', () => {
+  const records = [withMedia('a'), { id: 'b', media: null }, withMedia('c'), withMedia('d'), withMedia('e')];
+  assertEqual(selectRecordsToPurge(records, 2).map((r) => r.id), ['d', 'e']);
+});
+
+test('selectRecordsToPurge ignora los ya purgados y no falla con N mayor que el total', () => {
+  const records = [withMedia('a'), withMedia('b', true)];
+  assertEqual(selectRecordsToPurge(records, 1).map((r) => r.id), []);
+  assertEqual(selectRecordsToPurge(records, 10).map((r) => r.id), []);
+});
+
+// ===== storage.js (sobre una base de datos de pruebas) =====
+
+async function freshDatabase() {
+  await storage.useDatabaseForTests('carcheck-test');
+  await new Promise((resolve, reject) => {
+    const req = indexedDB.deleteDatabase('carcheck-test');
+    req.onsuccess = resolve;
+    req.onerror = () => reject(req.error);
+  });
+}
+
+test('storage: guarda y lee registros ordenados por fecha', async () => {
+  await freshDatabase();
+  await storage.saveRecord(createRecord({ note: 'viejo', now: 1000 }));
+  await storage.saveRecord(createRecord({ note: 'nuevo', now: 2000 }));
+  const all = await storage.getAllRecords();
+  assertEqual(all.map((r) => r.note), ['nuevo', 'viejo']);
+  assertEqual((await storage.getLatestRecord()).note, 'nuevo');
+});
+
+test('storage: guarda el blob aparte y lo borra con el registro', async () => {
+  await freshDatabase();
+  const record = createRecord({ media: createMediaInfo({ type: 'photo', mimeType: 'image/jpeg', size: 3 }) });
+  await storage.saveRecord(record, new Blob(['abc'], { type: 'image/jpeg' }));
+  const blob = await storage.getMediaBlob(record.id);
+  assertEqual(await blob.text(), 'abc');
+  await storage.deleteRecord(record.id);
+  assertEqual(await storage.getMediaBlob(record.id), null);
+  assertEqual(await storage.getLatestRecord(), null);
+});
+
+test('storage: la retención borra archivos antiguos pero conserva los datos', async () => {
+  await freshDatabase();
+  const ids = [];
+  for (let i = 0; i < 4; i++) {
+    const record = createRecord({ now: i, note: `r${i}`, media: createMediaInfo({ type: 'photo', mimeType: 'image/jpeg', size: 1 }) });
+    ids.push(record.id);
+    await storage.saveRecord(record, new Blob(['x']));
+  }
+  assertEqual(await storage.enforceMediaRetention(2), 2);
+  const all = await storage.getAllRecords();
+  assertEqual(all.length, 4, 'se conservan todos los registros:');
+  assertEqual(all.map((r) => r.media.purged), [false, false, true, true]);
+  assertEqual(await storage.getMediaBlob(ids[0]), null);
+  assert(await storage.getMediaBlob(ids[3]), 'el más reciente conserva el archivo');
+});
+
+test('storage: ajustes con valores por defecto', async () => {
+  await freshDatabase();
+  assertEqual((await storage.getSettings()).mediaRetention, 10);
+  await storage.saveSetting('mediaRetention', 5);
+  assertEqual((await storage.getSettings()).mediaRetention, 5);
+});
+
+// ===== Ejecución =====
+
+async function run() {
+  const list = document.getElementById('results');
+  let failed = 0;
+  for (const { name, fn } of tests) {
+    const li = document.createElement('li');
+    try {
+      await fn();
+      li.className = 'pass';
+      li.textContent = `✔ ${name}`;
+    } catch (error) {
+      failed++;
+      li.className = 'fail';
+      li.textContent = `✘ ${name}`;
+      const pre = document.createElement('pre');
+      pre.textContent = error.stack || String(error);
+      li.append(pre);
+    }
+    list.append(li);
+  }
+  const summary = failed ? `FAIL ${failed}/${tests.length}` : `PASS ${tests.length}/${tests.length}`;
+  document.getElementById('summary').textContent = summary;
+  document.title = summary;
+  // Informe en texto para el servidor de desarrollo (tools/devserver.py); en otros servidores se ignora.
+  const report = [summary, ...[...list.children].map((li) => li.textContent)].join('\n');
+  fetch('/__report', { method: 'POST', body: report }).catch(() => {});
+}
+
+run();
