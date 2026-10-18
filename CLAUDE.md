@@ -18,7 +18,7 @@ Usuario: Jofre, estudiante de Ingeniería Informática.
 - PWA: `manifest.webmanifest` + `sw.js` (cache-first para el app shell, network-first para las teselas del mapa).
 - Datos solo en el dispositivo con IndexedDB, mediante un wrapper propio (`js/storage.js`). Sin backend.
 - Mapa: Leaflet 1.9.4 copiado en `vendor/leaflet/` (build ESM) + teselas de OpenStreetMap. Es la única dependencia externa.
-- Despliegue: GitHub Pages desde la rama `main` (carpeta raíz). Repo: `carcheck` (público).
+- Despliegue: GitHub Pages desde la rama `main` (carpeta raíz). Repo: https://github.com/JofreCV/carcheck (público). URL: https://jofrecv.github.io/carcheck/. Publicar = `git push` a `main` (gh ya está autenticado como JofreCV; `gh.exe` está en `C:\Program Files\GitHub CLI\`, que no está en el PATH de la sesión).
 
 ## Arquitectura
 | Archivo | Responsabilidad |

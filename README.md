@@ -1,5 +1,7 @@
 # 🚗 CarCheck
 
+**App:** https://jofrecv.github.io/carcheck/ · **Código:** https://github.com/JofreCV/carcheck
+
 App web instalable (PWA) para el móvil que resuelve dos dudas de siempre:
 
 1. **«¿He cerrado el coche?»** Al aparcar pulsas **🔒 Coche cerrado** y queda guardada la hora, la ubicación GPS y, si quieres, una **foto** o un **vídeo de 5 segundos** (por ejemplo, tirando de la manija) y una nota («planta -2, plaza 47»). Cuando te entre la duda en casa, abres la app y ves al momento «Cerrado ✅ hace 2 h 14 min» con la prueba.
@@ -50,7 +52,7 @@ Al cambiar cualquier archivo del app shell hay que subir `CACHE_VERSION` en `sw.
 
 ## Despliegue
 
-La app se publica con **GitHub Pages** desde la rama `main` (carpeta raíz). No hay build: cada `git push` a `main` publica la versión nueva en uno o dos minutos. GitHub Pages sirve por HTTPS, que es obligatorio para el GPS, la cámara y el Service Worker.
+La app se publica con **GitHub Pages** desde la rama `main` (carpeta raíz) en https://jofrecv.github.io/carcheck/. No hay build: cada `git push` a `main` publica la versión nueva en uno o dos minutos. GitHub Pages sirve por HTTPS, que es obligatorio para el GPS, la cámara y el Service Worker.
 
 ## Instalarla en Android
 
