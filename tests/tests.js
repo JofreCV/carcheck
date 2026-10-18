@@ -8,6 +8,7 @@ import {
   ticketTimeToTimestamp, timestampToTimeInput, formatCountdown,
 } from '../js/format.js';
 import { distanceMeters } from '../js/location.js';
+import { buildAddress } from '../js/geocode.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -137,6 +138,13 @@ test('distanceMeters (haversine) Tarragona–Reus ≈ 13 km', () => {
   const d = distanceMeters({ lat: 41.1189, lng: 1.2445 }, { lat: 41.1561, lng: 1.1069 });
   assert(d > 12000 && d < 13000, `distancia ${d}`);
   assertEqual(distanceMeters({ lat: 1, lng: 1 }, { lat: 1, lng: 1 }), 0);
+});
+
+test('buildAddress (respuesta de Nominatim)', () => {
+  assertEqual(buildAddress({ address: { road: 'Carrer Major', house_number: '12', city: 'Tarragona' } }), 'Carrer Major 12, Tarragona');
+  assertEqual(buildAddress({ address: { pedestrian: 'Rambla Nova', town: 'Reus' } }), 'Rambla Nova, Reus');
+  assertEqual(buildAddress({ address: { village: 'Altafulla' } }), 'Altafulla');
+  assertEqual(buildAddress({ error: 'Unable to geocode' }), '');
 });
 
 // ===== storage.js (sobre una base de datos de pruebas) =====

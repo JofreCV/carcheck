@@ -351,7 +351,8 @@ export function renderMapInfo({ record, distance, me, meError }) {
     info.innerHTML = '⚠️ El último cierre se guardó sin ubicación.<small>No hay posición del coche que mostrar.</small>';
     return;
   }
-  const when = `Cerrado ${formatRelative(record.createdAt)}${record.note ? ` · ${escapeHtml(record.note)}` : ''}`;
+  const place = record.note || record.address ? describePlace(record) : '';
+  const when = `Cerrado ${formatRelative(record.createdAt)}${place ? ` · ${escapeHtml(place)}` : ''}`;
   if (distance != null) {
     info.innerHTML = `🚗 A ${formatDistance(distance)} de ti<small>${when}</small>`;
   } else if (meError) {

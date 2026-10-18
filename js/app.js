@@ -4,6 +4,7 @@ import * as ui from './ui.js';
 import * as storage from './storage.js';
 import { createRecord, selectRecordsToPurge, isParked } from './model.js';
 import { plural } from './format.js';
+import { reverseGeocode } from './geocode.js';
 import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters } from './location.js';
 import {
   processPhoto, processVideoFile, isInAppRecordingSupported, openRearCamera, stopCamera,
@@ -267,6 +268,41 @@ function setupLockFlow() {
   $('#recorder').addEventListener('close', onRecorderClosed);
 }
 
+// ===== Dirección (geocodificación inversa) =====
+
+let geocoding = false;
+
+/**
+ * Busca la dirección de los registros que aún no la tienen (address === null), empezando por
+ * los más recientes y con un máximo por llamada para no hacer peticiones masivas.
+ * Si falla la red se para y se reintentará en otro momento (al guardar, al abrir o al volver la conexión).
+ */
+async function fillMissingAddresses(limit = 5) {
+  if (geocoding || !navigator.onLine) return;
+  geocoding = true;
+  let updated = false;
+  try {
+    const pending = (await storage.getAllRecords())
+      .filter((record) => record.location && record.address === null)
+      .slice(0, limit);
+    for (const record of pending) {
+      const address = await reverseGeocode(record.location);
+      const fresh = await storage.getRecord(record.id); // pudo borrarse o editarse mientras tanto
+      if (!fresh) continue;
+      await storage.updateRecord({ ...fresh, address });
+      updated = true;
+    }
+  } catch (error) {
+    console.warn('No se ha podido obtener la dirección:', error);
+  } finally {
+    geocoding = false;
+  }
+  if (updated) {
+    refreshStatus();
+    if (currentView === 'history') refreshHistory();
+  }
+}
+
 // ===== «Lo he recogido» =====
 
 async function onEndParking(recordId) {
@@ -500,6 +536,7 @@ async function afterSaveHousekeeping() {
     await storage.requestPersistentStorage();
     const { mediaRetention } = await storage.getSettings();
     await storage.enforceMediaRetention(mediaRetention);
+    fillMissingAddresses();
   } catch (error) {
     console.error(error); // no es crítico: el registro ya está guardado
   }
@@ -623,6 +660,8 @@ function init() {
   registerServiceWorker();
   refreshStatus();
   handleLaunchParams();
+  fillMissingAddresses();
+  window.addEventListener('online', () => fillMissingAddresses());
   // «hace X min» y la cuenta atrás del ticket tienen que avanzar solos, y actualizarse
   // al volver a la app desde segundo plano.
   setInterval(refreshStatus, 30 * 1000);

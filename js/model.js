@@ -12,7 +12,7 @@ const RECORD_DEFAULTS = {
   locked: true,
   location: null,       // { lat, lng, accuracy, capturedAt, source: 'gps' | 'lastKnown' }
   locationError: null,  // 'denied' | 'timeout' | 'unavailable' | 'unsupported' | 'skipped'
-  address: null,        // reservado para la geocodificación inversa
+  address: null,        // calle (Nominatim): null = pendiente de buscar, '' = sin resultado
   note: '',
   media: null,          // ver createMediaInfo()
   endedAt: null,        // cuándo se recogió el coche (null = sigue aparcado)

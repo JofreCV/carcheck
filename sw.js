@@ -24,6 +24,7 @@ const SHELL_FILES = [
   './js/location.js',
   './js/media.js',
   './js/map.js',
+  './js/geocode.js',
   './vendor/leaflet/leaflet.css',
   './vendor/leaflet/leaflet-src.esm.js',
   './icons/icon.svg',
