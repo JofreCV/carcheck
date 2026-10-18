@@ -321,3 +321,35 @@ main {
 }
 .recorder-actions .btn { min-height: 64px; border: 0; }
 .rec-button { background: #dc2626; color: #fff; font-size: 1.15rem; }
+
+/* ===== Mapa ===== */
+.view-map { position: relative; height: 100%; padding: 0; gap: 0; }
+.map { flex: 1; min-height: 300px; background: var(--surface-2); }
+.map-panel {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 500; /* encima de las teselas, debajo de la barra inferior */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.map-info { margin: 0; font-weight: 600; }
+.map-info small { display: block; font-weight: 400; color: var(--muted); }
+.map-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+.car-marker span {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #0f766e;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.4);
+  font-size: 1.4rem;
+}
+/* Teselas algo más oscuras en modo oscuro para no deslumbrar de noche */
+@media (prefers-color-scheme: dark) {
+  .leaflet-tile-pane { filter: brightness(0.75) contrast(1.1); }
+}

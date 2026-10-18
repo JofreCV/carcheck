@@ -1,6 +1,6 @@
 // Todo lo que toca el DOM vive aquí, así app.js solo orquesta y es más fácil de leer.
 
-import { formatRelative, formatDateTime, formatBytes, describePlace, describeLocationError } from './format.js';
+import { formatRelative, formatDateTime, formatBytes, formatDistance, describePlace, describeLocationError } from './format.js';
 import { POOR_ACCURACY_M } from './location.js';
 
 export const $ = (selector, root = document) => root.querySelector(selector);
@@ -239,4 +239,33 @@ export function renderRecorder(state, remainingMs = 0) {
 
 export function resetRecorder() {
   $('#recorder-preview').srcObject = null;
+}
+
+// ===== Vista del mapa =====
+
+/**
+ * @param {{ record: object|null, distance: number|null, me: object|null, meError: Error|null }} state
+ */
+export function renderMapInfo({ record, distance, me, meError }) {
+  const info = $('#map-info');
+  if (!record?.location) {
+    info.innerHTML = record
+      ? '⚠️ El último cierre se guardó sin ubicación.<small>No hay posición del coche que mostrar.</small>'
+      : 'No hay ninguna ubicación guardada.<small>Registra un cierre para verlo aquí.</small>';
+    return;
+  }
+  const when = `Cerrado ${formatRelative(record.createdAt)}${record.note ? ` · ${escapeHtml(record.note)}` : ''}`;
+  if (distance != null) {
+    info.innerHTML = `🚗 A ${formatDistance(distance)} de ti<small>${when}</small>`;
+  } else if (meError) {
+    info.innerHTML = `🚗 Tu coche<small>${when}. No se puede saber dónde estás: ${escapeHtml(describeLocationError(meError.code))}.</small>`;
+  } else {
+    info.innerHTML = `🚗 Tu coche<small>${when}. Buscando tu posición…</small>`;
+  }
+}
+
+export function setDirectionsLink(url) {
+  const link = $('#btn-directions');
+  link.hidden = !url;
+  if (url) link.href = url;
 }

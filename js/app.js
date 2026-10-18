@@ -3,7 +3,7 @@
 import * as ui from './ui.js';
 import * as storage from './storage.js';
 import { createRecord } from './model.js';
-import { acquireBestPosition } from './location.js';
+import { acquireBestPosition, watchCurrentPosition, distanceMeters } from './location.js';
 import {
   processPhoto, processVideoFile, isInAppRecordingSupported, openRearCamera, stopCamera,
   recordClip, captureVideoFrame, videoInfo, VIDEO_MAX_MS,
@@ -268,12 +268,68 @@ function setupViewer() {
   $('#viewer').addEventListener('close', ui.closeViewerMedia);
 }
 
+// ===== Mapa =====
+
+let mapModule = null;      // se carga la primera vez que se abre la vista (import dinámico)
+let stopWatchingMe = null; // deja de seguir la posición al salir del mapa (ahorra batería)
+
+async function enterMapView() {
+  try {
+    mapModule ??= await import('./map.js');
+  } catch (error) {
+    console.error(error);
+    $('#map-info').textContent = 'No se ha podido cargar el mapa. ¿Estás sin conexión?';
+    return;
+  }
+  mapModule.ensureMap($('#map'));
+
+  const record = await storage.getLatestRecord();
+  const car = record?.location ?? null;
+  const state = { record, distance: null, me: null, meError: null };
+  mapModule.showCar(car);
+  mapModule.clearMe();
+  mapModule.recenter();
+  ui.setDirectionsLink(car ? mapModule.directionsUrl(car) : null);
+  ui.renderMapInfo(state);
+
+  stopWatchingMe?.();
+  stopWatchingMe = watchCurrentPosition(
+    (fix) => {
+      state.me = fix;
+      state.meError = null;
+      state.distance = car ? distanceMeters(fix, car) : null;
+      mapModule.showMe(fix);
+      ui.renderMapInfo(state);
+    },
+    (error) => {
+      state.meError = error;
+      ui.renderMapInfo(state);
+    },
+  );
+}
+
+function leaveMapView() {
+  stopWatchingMe?.();
+  stopWatchingMe = null;
+}
+
 // ===== Navegación =====
+
+let currentView = 'home';
+
+function navigate(view) {
+  if (view === currentView) return;
+  if (currentView === 'map') leaveMapView();
+  currentView = view;
+  ui.showView(view);
+  if (view === 'map') enterMapView();
+}
 
 function setupNavigation() {
   for (const tab of document.querySelectorAll('.tabbar button')) {
-    tab.addEventListener('click', () => ui.showView(tab.dataset.view));
+    tab.addEventListener('click', () => navigate(tab.dataset.view));
   }
+  $('#btn-center').addEventListener('click', () => mapModule?.recenter());
 }
 
 // ===== Arranque =====
@@ -286,7 +342,12 @@ function init() {
   // «hace X min» tiene que avanzar solo, y actualizarse al volver a la app desde segundo plano.
   setInterval(refreshStatus, 60 * 1000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') refreshStatus();
+    if (document.visibilityState === 'visible') {
+      refreshStatus();
+      if (currentView === 'map') enterMapView();
+    } else if (currentView === 'map') {
+      leaveMapView(); // no gastar GPS con la app en segundo plano
+    }
   });
 }
 

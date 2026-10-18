@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
   <meta name="description" content="Registra que has cerrado el coche y dónde lo has aparcado.">
   <title>CarCheck</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/styles.css">
   <script type="module" src="js/app.js"></script>
 </head>
@@ -26,8 +27,15 @@
     </section>
 
     <!-- ¿Dónde está mi coche? -->
-    <section id="view-map" class="view" aria-label="Mapa" hidden>
-      <p class="empty">Mapa (próximamente)</p>
+    <section id="view-map" class="view view-map" aria-label="Mapa" hidden>
+      <div id="map" class="map"></div>
+      <div class="card map-panel">
+        <p id="map-info" class="map-info">Cargando mapa…</p>
+        <div class="map-actions">
+          <button type="button" id="btn-center" class="btn">🎯 Centrar</button>
+          <a id="btn-directions" class="btn primary" target="_blank" rel="noopener" hidden>🚶 Cómo llegar</a>
+        </div>
+      </div>
     </section>
 
     <!-- Historial -->
