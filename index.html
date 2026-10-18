@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Registra que has cerrado el coche y dónde lo has aparcado.">
+  <title>CarCheck</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>🚗 CarCheck</h1>
+  </header>
+
+  <main>
+    <!-- Inicio: estado actual + botón principal (abajo, al alcance del pulgar) -->
+    <section id="view-home" class="view" aria-label="Inicio">
+      <article id="status-card" class="card status-card" aria-live="polite">
+        <p class="status-title">Sin registro</p>
+      </article>
+      <button id="btn-lock" class="btn-lock" type="button">🔒 Coche cerrado</button>
+    </section>
+
+    <!-- ¿Dónde está mi coche? -->
+    <section id="view-map" class="view" aria-label="Mapa" hidden>
+      <p class="empty">Mapa (próximamente)</p>
+    </section>
+
+    <!-- Historial -->
+    <section id="view-history" class="view" aria-label="Historial" hidden>
+      <p class="empty">Historial (próximamente)</p>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Secciones">
+    <button type="button" data-view="home" aria-current="page"><span aria-hidden="true">🏠</span>Inicio</button>
+    <button type="button" data-view="map"><span aria-hidden="true">🗺️</span>Mapa</button>
+    <button type="button" data-view="history"><span aria-hidden="true">🕑</span>Historial</button>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

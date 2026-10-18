@@ -1,0 +1,10 @@
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Logs del servidor de desarrollo y del túnel
+*.log
+tools/.tunnel-url
