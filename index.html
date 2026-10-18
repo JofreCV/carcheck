@@ -53,6 +53,7 @@
         <span>Prueba visual <span class="muted">(opcional)</span></span>
         <div id="proof-buttons" class="proof-buttons">
           <button type="button" id="btn-photo" class="btn">📷 Foto</button>
+          <button type="button" id="btn-video" class="btn">🎥 Vídeo</button>
         </div>
         <div id="proof-preview" class="proof-preview" hidden>
           <img id="proof-thumb" alt="Miniatura de la prueba">
@@ -61,6 +62,8 @@
         </div>
         <!-- En Android, capture="environment" abre directamente la cámara trasera -->
         <input type="file" id="photo-input" accept="image/*" capture="environment" hidden>
+        <!-- Fallback si no se puede grabar dentro de la app (sin MediaRecorder o sin permiso) -->
+        <input type="file" id="video-input" accept="video/*" capture="environment" hidden>
       </div>
 
       <label class="field">
@@ -75,6 +78,17 @@
       </div>
       <button type="button" id="btn-save-now" class="btn block" hidden>Guardar sin esperar al GPS</button>
     </form>
+  </dialog>
+
+  <!-- Grabador de vídeo: vista previa de la cámara trasera, cuenta atrás de 5 s -->
+  <dialog id="recorder" class="fullscreen recorder" aria-label="Grabar vídeo">
+    <video id="recorder-preview" autoplay muted playsinline></video>
+    <div id="recorder-countdown" class="recorder-countdown" hidden></div>
+    <p id="recorder-hint" class="recorder-hint"></p>
+    <div class="recorder-actions">
+      <button type="button" id="btn-rec-cancel" class="btn">Cancelar</button>
+      <button type="button" id="btn-rec-toggle" class="btn rec-button"></button>
+    </div>
   </dialog>
 
   <!-- Visor a pantalla completa de la foto o el vídeo -->

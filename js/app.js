@@ -4,7 +4,10 @@ import * as ui from './ui.js';
 import * as storage from './storage.js';
 import { createRecord } from './model.js';
 import { acquireBestPosition } from './location.js';
-import { processPhoto } from './media.js';
+import {
+  processPhoto, processVideoFile, isInAppRecordingSupported, openRearCamera, stopCamera,
+  recordClip, captureVideoFrame, videoInfo, VIDEO_MAX_MS,
+} from './media.js';
 
 const { $ } = ui;
 
@@ -87,6 +90,87 @@ function setPendingMedia(media) {
   ui.renderProofPreview(media);
 }
 
+// ----- Prueba visual: vídeo -----
+
+let camera = null;             // MediaStream de la cámara trasera mientras el grabador está abierto
+let recording = null;          // { done, stop } de la grabación en curso
+let useVideoFallback = false;  // tras un fallo de cámara se usa la cámara del sistema
+
+async function onVideoClicked() {
+  if (useVideoFallback || !isInAppRecordingSupported()) {
+    $('#video-input').click();
+    return;
+  }
+  try {
+    camera = await openRearCamera();
+  } catch (error) {
+    console.error(error);
+    // No abrimos aquí el input directamente: tras el diálogo de permisos Chrome puede
+    // bloquear el click por haber pasado demasiado tiempo desde que el usuario pulsó.
+    useVideoFallback = true;
+    const reason = error.code === 'denied' ? 'Sin permiso de cámara.' : 'No se puede grabar dentro de la app.';
+    ui.toast(`${reason} Pulsa 🎥 Vídeo otra vez para usar la cámara del móvil.`, 'warning', 7000);
+    return;
+  }
+  ui.showRecorder(camera);
+}
+
+function onRecordToggle() {
+  if (recording) {
+    recording.stop(); // parada manual antes de los 5 s
+    return;
+  }
+  const current = recordClip(camera, { onTick: (remainingMs) => ui.renderRecorder('recording', remainingMs) });
+  recording = current;
+  ui.renderRecorder('recording', VIDEO_MAX_MS);
+
+  current.done
+    .then(async ({ blob, durationMs }) => {
+      if (recording !== current) return; // se canceló
+      ui.renderRecorder('processing');
+      // La miniatura se saca de la vista previa, que sigue mostrando la cámara en directo.
+      const preview = $('#recorder-preview');
+      const thumbnail = await captureVideoFrame(preview).catch(() => null);
+      const info = videoInfo(blob, { durationMs, width: preview.videoWidth, height: preview.videoHeight, thumbnail });
+      setPendingMedia({ blob, info });
+      $('#recorder').close();
+    })
+    .catch((error) => {
+      if (recording !== current) return;
+      console.error(error);
+      $('#recorder').close();
+      ui.toast('Ha fallado la grabación. Puedes intentarlo otra vez o guardar sin vídeo.', 'warning', 6000);
+    });
+}
+
+// Se llama al cerrar el grabador de cualquier forma: siempre se libera la cámara.
+function onRecorderClosed() {
+  const current = recording;
+  recording = null; // marca la grabación como cancelada si aún no había terminado
+  current?.stop();
+  stopCamera(camera);
+  camera = null;
+  ui.resetRecorder();
+}
+
+async function onVideoChosen(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  processingMedia = true;
+  ui.renderProofPreview(null, 'Procesando vídeo…');
+  try {
+    setPendingMedia(await processVideoFile(file));
+  } catch (error) {
+    console.error(error);
+    setPendingMedia(null);
+    ui.toast('No se ha podido procesar el vídeo. Puedes guardar sin él.', 'warning');
+  } finally {
+    processingMedia = false;
+  }
+}
+
 /** Si aún no hay ninguna lectura de GPS, espera a que llegue o a que el usuario decida no esperar. */
 async function waitForGpsIfNeeded() {
   if (gpsState.fix || gpsState.done) return;
@@ -107,7 +191,7 @@ async function saveLockRecord() {
     await waitForGpsIfNeeded();
     if (!$('#lock-sheet').open) return; // la hoja se cerró mientras esperábamos
     if (processingMedia) {
-      ui.toast('Espera a que termine de procesarse la foto.', 'info');
+      ui.toast('Espera a que termine de procesarse la foto o el vídeo.', 'info');
       return;
     }
 
@@ -152,6 +236,12 @@ function setupLockFlow() {
   $('#btn-photo').addEventListener('click', () => $('#photo-input').click());
   $('#photo-input').addEventListener('change', onPhotoChosen);
   $('#btn-proof-remove').addEventListener('click', () => setPendingMedia(null));
+
+  $('#btn-video').addEventListener('click', onVideoClicked);
+  $('#video-input').addEventListener('change', onVideoChosen);
+  $('#btn-rec-toggle').addEventListener('click', onRecordToggle);
+  $('#btn-rec-cancel').addEventListener('click', () => $('#recorder').close());
+  $('#recorder').addEventListener('close', onRecorderClosed);
 }
 
 // ===== Visor de la prueba (miniaturas de la tarjeta de estado y del historial) =====

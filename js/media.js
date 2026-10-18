@@ -66,3 +66,143 @@ export async function processPhoto(file) {
     bitmap.close();
   }
 }
+
+// ===== Vídeo =====
+
+export const VIDEO_MAX_MS = 5000;
+const VIDEO_BITS_PER_SECOND = 1_000_000; // ~1 Mbps: un clip de 5 s ocupa unos 600 KB
+// Por orden de preferencia: Chrome Android graba en WebM; MP4 como último recurso.
+const VIDEO_MIME_CANDIDATES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+
+export function isInAppRecordingSupported() {
+  return 'MediaRecorder' in window && Boolean(navigator.mediaDevices?.getUserMedia);
+}
+
+function pickVideoMimeType() {
+  return VIDEO_MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
+}
+
+/** Abre la cámara trasera a resolución moderada (≤720p) y sin audio. */
+export async function openRearCamera() {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+      audio: false,
+    });
+  } catch (error) {
+    const denied = error.name === 'NotAllowedError' || error.name === 'SecurityError';
+    throw new CaptureError(denied ? 'denied' : 'unavailable', error.message);
+  }
+}
+
+export function stopCamera(stream) {
+  stream?.getTracks().forEach((track) => track.stop());
+}
+
+/**
+ * Graba un clip de la cámara que se para solo a los maxMs.
+ * @param {MediaStream} stream
+ * @param {{ onTick?: (remainingMs) => void }} options  para pintar la cuenta atrás
+ * @returns {{ done: Promise<{ blob: Blob, durationMs: number }>, stop: () => void }}
+ */
+export function recordClip(stream, { maxMs = VIDEO_MAX_MS, onTick } = {}) {
+  const mimeType = pickVideoMimeType();
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, { ...(mimeType && { mimeType }), videoBitsPerSecond: VIDEO_BITS_PER_SECOND });
+  } catch (error) {
+    return { done: Promise.reject(new CaptureError('recording', error.message)), stop: () => {} };
+  }
+
+  const chunks = [];
+  let startedAt = 0;
+  let tickTimer;
+  let stopTimer;
+  const stop = () => {
+    if (recorder.state !== 'inactive') recorder.stop();
+  };
+
+  const done = new Promise((resolve, reject) => {
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    recorder.onerror = (event) => reject(new CaptureError('recording', event.error?.message ?? 'Error de grabación'));
+    recorder.onstop = () => {
+      clearInterval(tickTimer);
+      clearTimeout(stopTimer);
+      const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'video/webm' });
+      if (blob.size === 0) reject(new CaptureError('recording', 'La grabación está vacía'));
+      else resolve({ blob, durationMs: Math.min(Date.now() - startedAt, maxMs) });
+    };
+  });
+
+  recorder.start(250); // trozos de 250 ms: si algo falla a mitad, no se pierde todo
+  startedAt = Date.now();
+  onTick?.(maxMs);
+  tickTimer = setInterval(() => onTick?.(Math.max(0, maxMs - (Date.now() - startedAt))), 100);
+  stopTimer = setTimeout(stop, maxMs);
+
+  return { done, stop };
+}
+
+/** Miniatura JPEG del fotograma que muestra ahora mismo un <video>. */
+export async function captureVideoFrame(video) {
+  if (!video.videoWidth) return null;
+  const { blob } = await renderJpeg(video, video.videoWidth, video.videoHeight, THUMB_MAX_SIDE, THUMB_QUALITY);
+  return blob;
+}
+
+/** Monta el campo `media` de un vídeo grabado dentro de la app. */
+export function videoInfo(blob, { durationMs, width, height, thumbnail }) {
+  return createMediaInfo({ type: 'video', mimeType: blob.type, size: blob.size, width, height, durationMs, thumbnail });
+}
+
+/**
+ * Procesa un vídeo de la cámara del sistema (fallback sin MediaRecorder): saca la miniatura
+ * y los metadatos. Si la miniatura falla, el vídeo se guarda igualmente sin ella.
+ */
+export async function processVideoFile(file) {
+  const meta = await readVideoMetadata(file).catch(() => null);
+  return {
+    blob: file,
+    info: videoInfo(file, {
+      durationMs: meta?.durationMs ?? null,
+      width: meta?.width ?? null,
+      height: meta?.height ?? null,
+      thumbnail: meta?.thumbnail ?? null,
+    }),
+  };
+}
+
+function readVideoMetadata(blob, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+    const timer = setTimeout(() => { cleanup(); reject(new CaptureError('processing', 'Timeout leyendo el vídeo')); }, timeoutMs);
+
+    video.onerror = () => { cleanup(); reject(new CaptureError('processing', 'Vídeo ilegible')); };
+    video.onloadeddata = () => { video.currentTime = Math.min(0.1, video.duration || 0.1); };
+    video.onseeked = async () => {
+      try {
+        const thumbnail = await captureVideoFrame(video);
+        const durationMs = Number.isFinite(video.duration) ? Math.round(video.duration * 1000) : null;
+        resolve({ thumbnail, durationMs, width: video.videoWidth, height: video.videoHeight });
+      } catch (error) {
+        reject(error);
+      } finally {
+        cleanup();
+      }
+    };
+    video.src = url;
+  });
+}

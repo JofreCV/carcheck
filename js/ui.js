@@ -159,7 +159,8 @@ export function openViewer(record, blob) {
   if (blob) {
     viewerUrl = URL.createObjectURL(blob);
     content.innerHTML = record.media.type === 'video'
-      ? `<video src="${viewerUrl}" controls autoplay playsinline></video>`
+      // muted: los clips de la app no tienen audio y así Chrome permite el autoplay siempre.
+      ? `<video src="${viewerUrl}" controls autoplay muted playsinline loop></video>`
       : `<img src="${viewerUrl}" alt="Foto del cierre">`;
   } else {
     content.innerHTML = `
@@ -206,4 +207,36 @@ export function setSaving(saving, label = 'Guardando…') {
 
 export function showSaveNow(visible) {
   $('#btn-save-now').hidden = !visible;
+}
+
+// ===== Grabador de vídeo =====
+
+export function showRecorder(stream) {
+  $('#recorder-preview').srcObject = stream;
+  renderRecorder('ready');
+  $('#recorder').showModal();
+}
+
+/** state: 'ready' (encuadrando) | 'recording' | 'processing' */
+export function renderRecorder(state, remainingMs = 0) {
+  const toggle = $('#btn-rec-toggle');
+  const countdown = $('#recorder-countdown');
+  const hint = $('#recorder-hint');
+  countdown.hidden = state !== 'recording';
+  toggle.disabled = state === 'processing';
+  if (state === 'ready') {
+    toggle.textContent = '⏺ Grabar';
+    hint.textContent = 'Encuadra la manija y pulsa Grabar (máx. 5 s).';
+  } else if (state === 'recording') {
+    toggle.textContent = '⏹ Parar';
+    countdown.textContent = `● ${Math.ceil(remainingMs / 1000)}`;
+    hint.textContent = 'Grabando… se para solo a los 5 s.';
+  } else {
+    toggle.textContent = 'Procesando…';
+    hint.textContent = '';
+  }
+}
+
+export function resetRecorder() {
+  $('#recorder-preview').srcObject = null;
 }
