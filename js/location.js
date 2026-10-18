@@ -5,6 +5,7 @@
 export const GOOD_ACCURACY_M = 20;  // con esto ya paramos de buscar
 export const POOR_ACCURACY_M = 50;  // por encima avisamos al usuario
 const MAX_WAIT_MS = 20000;
+const LAST_KNOWN_MAX_AGE_MS = 10 * 60 * 1000;
 
 export class LocationError extends Error {
   /** @param {'denied'|'timeout'|'unavailable'|'unsupported'} code */
@@ -81,6 +82,25 @@ export function acquireBestPosition({ onUpdate, maxWaitMs = MAX_WAIT_MS, targetA
   });
 
   return { promise, stop: () => finish() };
+}
+
+/**
+ * Última posición que conoce el navegador (de hasta hace 10 min) o, si no tiene ninguna,
+ * una rápida por wifi/antenas. Sirve de plan B en parkings subterráneos, donde el GPS no
+ * llega pero hace un minuto, al entrar, sí había señal.
+ */
+export function getLastKnownPosition() {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject(new LocationError('unsupported'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ ...toFix(position), source: 'lastKnown' }),
+      (geoError) => reject(toLocationError(geoError)),
+      { enableHighAccuracy: false, maximumAge: LAST_KNOWN_MAX_AGE_MS, timeout: 3000 },
+    );
+  });
 }
 
 /**

@@ -4,7 +4,7 @@ import * as ui from './ui.js';
 import * as storage from './storage.js';
 import { createRecord, selectRecordsToPurge, isParked } from './model.js';
 import { plural } from './format.js';
-import { acquireBestPosition, watchCurrentPosition, distanceMeters } from './location.js';
+import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters } from './location.js';
 import {
   processPhoto, processVideoFile, isInAppRecordingSupported, openRearCamera, stopCamera,
   recordClip, captureVideoFrame, videoInfo, VIDEO_MAX_MS,
@@ -27,6 +27,7 @@ async function refreshStatus() {
 
 // Estado de la búsqueda de GPS de la hoja abierta.
 let gps = null;          // { promise, stop } de acquireBestPosition
+let gpsSettled = null;   // promesa que termina cuando ya se sabe la ubicación final (o que no hay)
 let gpsState = null;     // { fix, error, done }
 let skipGpsWait = null;  // resuelve la espera cuando se pulsa «Guardar sin esperar»
 let pendingMedia = null; // { blob, info } de la foto o el vídeo elegidos, aún sin guardar
@@ -48,9 +49,15 @@ function openLockSheet() {
       ui.renderGpsStatus(gpsState);
     },
   });
-  gps.promise
+  gpsSettled = gps.promise
     .then((fix) => { gpsState.fix = fix; })
-    .catch((error) => { gpsState.error = error; })
+    .catch(async (error) => {
+      gpsState.error = error;
+      // Sin señal (no por permiso denegado): probar con la última ubicación conocida.
+      if (error.code === 'denied' || error.code === 'unsupported') return;
+      const fallback = await getLastKnownPosition().catch(() => null);
+      if (fallback) gpsState.fix = fallback;
+    })
     .finally(() => {
       gpsState.done = true;
       ui.renderGpsStatus(gpsState);
@@ -181,7 +188,7 @@ async function waitForGpsIfNeeded() {
   ui.setSaving(true, 'Esperando GPS…');
   ui.showSaveNow(true);
   await Promise.race([
-    gps.promise.catch(() => {}),
+    gpsSettled,
     new Promise((resolve) => { skipGpsWait = resolve; }),
   ]);
   skipGpsWait = null;
@@ -241,7 +248,9 @@ function setupLockFlow() {
     event.preventDefault(); // el formulario solo existe para que «Intro» en la nota guarde
     saveLockRecord();
   });
-  $('#btn-save-now').addEventListener('click', () => skipGpsWait?.());
+  // «Guardar sin esperar»: se corta la búsqueda; si no había lectura, se intenta enseguida
+  // con la última ubicación conocida (gpsSettled) en vez de guardar sin nada.
+  $('#btn-save-now').addEventListener('click', () => gps?.stop());
 
   $('#btn-photo').addEventListener('click', () => $('#photo-input').click());
   $('#photo-input').addEventListener('change', onPhotoChosen);

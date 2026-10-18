@@ -51,8 +51,17 @@ export function toast(message, type = 'info', durationMs = 4000, action = null) 
 export function recordWarnings(record) {
   const warnings = [];
   if (!record.location) warnings.push(`Sin ubicación: ${describeLocationError(record.locationError)}`);
+  else if (record.location.source === 'lastKnown') warnings.push(describeLastKnown(record.location, record.createdAt));
   else if (record.location.accuracy > POOR_ACCURACY_M) warnings.push(`Ubicación poco precisa (±${record.location.accuracy} m)`);
   return warnings;
+}
+
+/** "Ubicación aproximada: la última conocida, de 4 min antes de guardar" */
+function describeLastKnown(location, savedAt) {
+  const age = savedAt - location.capturedAt;
+  return age >= 60 * 1000
+    ? `Ubicación aproximada: la última conocida, de ${formatDuration(age)} antes de guardar (sin señal GPS)`
+    : `Ubicación aproximada (sin señal GPS al guardar, ±${location.accuracy} m)`;
 }
 
 // ===== Miniaturas =====
@@ -214,7 +223,10 @@ export function closeViewerMedia() {
  */
 export function renderGpsStatus({ fix, error, done }) {
   const el = $('#gps-status');
-  if (fix) {
+  if (fix?.source === 'lastKnown') {
+    el.className = 'gps-status warning';
+    el.innerHTML = `📍 Sin señal GPS: se usará tu última ubicación conocida<small>${escapeHtml(describeLastKnown(fix, Date.now()))}</small>`;
+  } else if (fix) {
     const poor = fix.accuracy > POOR_ACCURACY_M;
     el.className = `gps-status ${poor ? 'warning' : 'ok'}`;
     const title = done ? `📍 Ubicación lista (±${fix.accuracy} m)` : `📡 Mejorando precisión… ±${fix.accuracy} m`;
