@@ -9,7 +9,7 @@ import {
 } from '../js/format.js';
 import { distanceMeters, bearingDegrees } from '../js/location.js';
 import { buildAddress, findNearbyAddress } from '../js/geocode.js';
-import { tileFor, tilesAround, tileUrl } from '../js/offline-tiles.js';
+import { tileFor, tilesAround, tileUrl, isTileRecent } from '../js/offline-tiles.js';
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -165,6 +165,15 @@ test('tileFor y tilesAround (teselas de OSM)', () => {
   assertEqual(around.length, 9);
   assertEqual(around[4], tileFor(41.1189, 1.2445, 17), 'la central está en medio:');
   assertEqual(tileUrl({ z: 3, x: 4, y: 5 }), 'https://tile.openstreetmap.org/3/4/5.png');
+});
+
+test('isTileRecent: las teselas se reutilizan durante 7 días', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z');
+  const day = 24 * 3600e3;
+  const tile = (fetchedAt) => new Response('', { headers: fetchedAt ? { 'x-carcheck-fetched-at': String(fetchedAt) } : {} });
+  assertEqual(isTileRecent(tile(now - 2 * day), now), true);
+  assertEqual(isTileRecent(tile(now - 8 * day), now), false);
+  assertEqual(isTileRecent(tile(null), now), false, 'sin marca (versión anterior) se vuelve a pedir:');
 });
 
 test('buildAddress (respuesta de Nominatim)', () => {
