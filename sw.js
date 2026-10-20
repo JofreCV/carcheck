@@ -6,7 +6,7 @@
 
 // IMPORTANTE: subir este número en cada cambio de cualquier archivo del app shell;
 // si no, los móviles que ya tienen la app seguirán usando la versión antigua.
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const SHELL_CACHE = `carcheck-shell-${CACHE_VERSION}`;
 const TILE_CACHE = 'carcheck-tiles';
 const MAX_TILES = 300;
