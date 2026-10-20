@@ -250,6 +250,27 @@ test('storage: updateRecord cambia los datos sin tocar el archivo', async () => 
   assertEqual(await (await storage.getMediaBlob(record.id)).text(), 'abc');
 });
 
+test('storage: patchRecord cambia campos sueltos y sustituye o quita el archivo', async () => {
+  await freshDatabase();
+  const record = createRecord({ note: 'nota' });
+  await storage.saveRecord(record);
+  const location = { lat: 1, lng: 2, accuracy: 5, capturedAt: 0, source: 'gps' };
+  const { record: patched } = await storage.patchRecord(record.id, { location });
+  assertEqual(patched.note, 'nota', 'conserva lo que no cambia:');
+  assertEqual((await storage.getRecord(record.id)).location, location);
+
+  const info = createMediaInfo({ type: 'photo', mimeType: 'image/jpeg', size: 3 });
+  await storage.patchRecord(record.id, {}, { blob: new Blob(['abc']), info });
+  assertEqual((await storage.getRecord(record.id)).media.size, 3);
+  assertEqual(await (await storage.getMediaBlob(record.id)).text(), 'abc');
+
+  await storage.patchRecord(record.id, {}, null);
+  assertEqual((await storage.getRecord(record.id)).media, null);
+  assertEqual(await storage.getMediaBlob(record.id), null, 'el archivo se borra:');
+
+  assertEqual((await storage.patchRecord('no-existe', { note: 'x' })).record, null);
+});
+
 test('storage: ajustes con valores por defecto', async () => {
   await freshDatabase();
   assertEqual((await storage.getSettings()).mediaRetention, 10);

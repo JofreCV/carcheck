@@ -215,6 +215,7 @@ main {
 .status-time { margin: 2px 0 0; font-size: 1.05rem; font-weight: 600; }
 .status-place { margin: 4px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 .status-warning { margin: 6px 0 0; color: var(--warning); font-size: 0.9rem; }
+.status-locating { margin: 6px 0 0; color: var(--muted); font-size: 0.9rem; }
 
 /* ===== Hoja inferior (dialog) ===== */
 .sheet {
@@ -230,6 +231,8 @@ main {
 }
 .sheet::backdrop { background: rgb(0 0 0 / 0.45); }
 .sheet h2 { margin: 0 0 12px; font-size: 1.25rem; }
+#lock-sheet h2 { margin-bottom: 0; color: var(--success); }
+.sheet-subtitle { margin: -8px 0 0; color: var(--muted); }
 .sheet form { display: flex; flex-direction: column; gap: 14px; }
 
 .sheet-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }

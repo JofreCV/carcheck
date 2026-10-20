@@ -109,6 +109,37 @@ export async function updateRecord(record) {
   });
 }
 
+/**
+ * Cambia solo algunos campos de un registro, leyéndolo y escribiéndolo en la misma transacción:
+ * así no se pisan dos cambios hechos a la vez (p. ej. el GPS afinando en segundo plano mientras
+ * editas la nota).
+ * @param {object} fields  campos que cambian
+ * @param {{ blob: Blob, info: object } | null} [media]  si se pasa, sustituye la foto o el vídeo
+ *   (null lo quita). Si el almacenamiento está lleno, se guarda el resto sin el archivo.
+ * @returns {{ record: object|null, mediaDropped: boolean }}  record es null si ya no existe
+ */
+export async function patchRecord(recordId, fields, media) {
+  const run = (mediaToSave) => withTransaction(['records', 'media'], 'readwrite', async (tx) => {
+    const records = tx.objectStore('records');
+    const raw = await requestResult(records.get(recordId));
+    if (!raw) return null;
+    const record = { ...migrateRecord(raw), ...fields };
+    if (mediaToSave !== undefined) {
+      record.media = mediaToSave?.info ?? null;
+      if (mediaToSave) tx.objectStore('media').put({ recordId, blob: mediaToSave.blob });
+      else tx.objectStore('media').delete(recordId);
+    }
+    records.put(record);
+    return record;
+  });
+  try {
+    return { record: await run(media), mediaDropped: false };
+  } catch (error) {
+    if (!media || !isQuotaError(error)) throw error;
+    return { record: await run(null), mediaDropped: true };
+  }
+}
+
 /** Todos los registros, del más reciente al más antiguo. */
 export async function getAllRecords() {
   const records = await withTransaction('records', 'readonly', (tx) =>

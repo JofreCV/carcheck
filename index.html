@@ -71,10 +71,12 @@
     <button type="button" data-view="history"><span aria-hidden="true">🕑</span>Historial</button>
   </nav>
 
-  <!-- Hoja de cierre: se abre al pulsar el botón y el GPS empieza a buscar en ese momento -->
+  <!-- Hoja de cierre: el registro ya se ha guardado al pulsar el botón; aquí se añaden detalles
+       (se guardan solos) mientras el GPS afina la ubicación -->
   <dialog id="lock-sheet" class="sheet" aria-labelledby="lock-sheet-title">
     <form id="lock-form" method="dialog">
-      <h2 id="lock-sheet-title">Registrar cierre</h2>
+      <h2 id="lock-sheet-title">✅ Cierre guardado</h2>
+      <p class="sheet-subtitle">Ya está registrado. Si quieres, añade detalles: se guardan solos.</p>
 
       <div id="gps-status" class="gps-status" role="status" aria-live="polite"></div>
 
@@ -113,10 +115,9 @@
       </div>
 
       <div class="sheet-actions">
-        <button type="button" id="btn-sheet-cancel" class="btn">Cancelar</button>
-        <button type="submit" id="btn-save" class="btn primary">Guardar</button>
+        <button type="button" id="btn-lock-discard" class="btn">Descartar</button>
+        <button type="submit" id="btn-lock-done" class="btn primary">Listo</button>
       </div>
-      <button type="button" id="btn-save-now" class="btn block" hidden>Guardar sin esperar al GPS</button>
     </form>
   </dialog>
 

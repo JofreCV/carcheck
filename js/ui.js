@@ -102,7 +102,11 @@ function thumbButton(record) {
 
 // ===== Tarjeta de estado =====
 
-export function renderStatus(record) {
+/**
+ * @param {object|null} record  el último registro
+ * @param {{ locating?: boolean }} [options]  locating: el GPS del cierre aún está buscando o afinando
+ */
+export function renderStatus(record, { locating = false } = {}) {
   const card = $('#status-card');
   if (!record) {
     card.className = 'card status-card';
@@ -129,6 +133,10 @@ export function renderStatus(record) {
   }
 
   const accuracy = record.location ? ` <span class="muted">(±${record.location.accuracy} m)</span>` : '';
+  // Mientras el GPS sigue buscando, los avisos de «sin ubicación» o «poco precisa» aún no son definitivos.
+  const notes = locating
+    ? `<p class="status-locating">📡 ${record.location ? 'Afinando la ubicación…' : 'Buscando la ubicación…'}</p>`
+    : recordWarnings(record).map((w) => `<p class="status-warning">⚠️ ${escapeHtml(w)}</p>`).join('');
   card.className = 'card status-card locked';
   card.innerHTML = `
     <div class="status-main">
@@ -138,7 +146,7 @@ export function renderStatus(record) {
         <p class="status-time">${formatRelative(record.createdAt)} <span class="muted">· ${formatClock(record.createdAt)}</span></p>
         ${place ? `<p class="status-place">${escapeHtml(place)}${accuracy}</p>` : ''}
         ${ticketLine(record)}
-        ${recordWarnings(record).map((w) => `<p class="status-warning">⚠️ ${escapeHtml(w)}</p>`).join('')}
+        ${notes}
       </div>
     </div>
     <div class="status-actions">
@@ -195,8 +203,6 @@ export function openEditDialog(record) {
 export function resetLockSheet() {
   $('#lock-form').reset();
   setTicketInput($('#lock-ticket'), null);
-  setSaving(false);
-  showSaveNow(false);
   renderProofPreview(null);
 }
 
@@ -267,39 +273,30 @@ export function closeViewerMedia() {
 }
 
 /**
- * Pinta el estado del GPS en la hoja.
+ * Pinta el estado del GPS en la hoja. El cierre ya está guardado: esto solo cuenta cómo va la
+ * ubicación, que se va guardando sola a medida que mejora.
  * @param {{ fix: object|null, error: Error|null, done: boolean }} gps
  */
 export function renderGpsStatus({ fix, error, done }) {
   const el = $('#gps-status');
   if (fix?.source === 'lastKnown') {
     el.className = 'gps-status warning';
-    el.innerHTML = `📍 Sin señal GPS: se usará tu última ubicación conocida<small>${escapeHtml(describeLastKnown(fix, Date.now()))}</small>`;
+    el.innerHTML = `📍 Sin señal GPS: se ha guardado tu última ubicación conocida<small>${escapeHtml(describeLastKnown(fix, Date.now()))}</small>`;
   } else if (fix) {
     const poor = fix.accuracy > POOR_ACCURACY_M;
     el.className = `gps-status ${poor ? 'warning' : 'ok'}`;
-    const title = done ? `📍 Ubicación lista (±${fix.accuracy} m)` : `📡 Mejorando precisión… ±${fix.accuracy} m`;
+    const title = done ? `📍 Ubicación guardada (±${fix.accuracy} m)` : `📡 Afinando la ubicación… ±${fix.accuracy} m`;
     const hint = poor
-      ? (done ? 'Precisión baja: se guardará igualmente.' : 'Precisión baja. Espera unos segundos o guarda igualmente.')
-      : (done ? '' : 'Ya puedes guardar.');
+      ? (done ? 'Precisión baja, pero es la mejor que se ha podido obtener.' : 'Precisión baja. Si esperas unos segundos, se corrige sola.')
+      : (done ? '' : 'Ya está guardada; se sigue afinando unos segundos.');
     el.innerHTML = `${title}${hint ? `<small>${hint}</small>` : ''}`;
   } else if (!done) {
     el.className = 'gps-status';
-    el.innerHTML = '📡 Buscando GPS…<small>Puedes ir escribiendo la nota mientras tanto.</small>';
+    el.innerHTML = '📡 Buscando GPS…<small>Puedes ir añadiendo detalles: la ubicación se guarda en cuanto llega.</small>';
   } else {
     el.className = 'gps-status error';
-    el.innerHTML = `⚠️ Sin ubicación: ${escapeHtml(describeLocationError(error?.code))}<small>Se guardará el registro sin coordenadas.</small>`;
+    el.innerHTML = `⚠️ Sin ubicación: ${escapeHtml(describeLocationError(error?.code))}<small>El cierre está guardado, pero sin coordenadas.</small>`;
   }
-}
-
-export function setSaving(saving, label = 'Guardando…') {
-  const button = $('#btn-save');
-  button.disabled = saving;
-  button.textContent = saving ? label : 'Guardar';
-}
-
-export function showSaveNow(visible) {
-  $('#btn-save-now').hidden = !visible;
 }
 
 // ===== Cámara (foto y vídeo) =====
