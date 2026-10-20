@@ -9,6 +9,8 @@ import { isParked } from './model.js';
 
 export const $ = (selector, root = document) => root.querySelector(selector);
 
+const NEAR_CAR_M = 15; // a menos de esto: «Estás al lado de tu coche»
+
 /** Escapa texto del usuario (la nota) antes de meterlo en HTML. */
 export function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -364,7 +366,7 @@ export function renderMapInfo({ record, distance, me, meError }) {
   }
   const place = record.note || record.address ? describePlace(record) : '';
   const when = `Cerrado ${formatRelative(record.createdAt)}${place ? ` · ${escapeHtml(place)}` : ''}`;
-  if (distance != null && distance < 15) {
+  if (distance != null && distance < NEAR_CAR_M) {
     info.innerHTML = `🎉 Estás al lado de tu coche<small>${when}</small>`;
   } else if (distance != null) {
     info.innerHTML = `🚗 A ${formatDistance(distance)} de ti<small>${when}</small>`;
@@ -398,6 +400,9 @@ export function renderCompass({ distance, bearing, heading, noCompass, meError, 
   const target = bearing == null ? null : bearing - (noCompass ? 0 : heading ?? 0);
   const ready = bearing != null && (noCompass || heading != null);
   arrow.classList.toggle('waiting', !ready);
+  // A pocos metros la dirección ya no es fiable: el GPS tiene más error que la distancia y la
+  // carrocería del coche desvía el magnetómetro. La flecha se atenúa para que no despiste.
+  arrow.classList.toggle('near', distance != null && distance < NEAR_CAR_M);
   if (target != null) {
     const delta = ((((target - arrowRotation) % 360) + 540) % 360) - 180;
     arrowRotation += delta;
@@ -406,7 +411,7 @@ export function renderCompass({ distance, bearing, heading, noCompass, meError, 
 
   if (meError) status.textContent = `No se puede saber dónde estás: ${describeLocationError(meError.code)}.`;
   else if (distance == null) status.textContent = 'Buscando tu posición…';
-  else if (distance < 15) status.textContent = '🎉 Estás al lado de tu coche';
+  else if (distance < NEAR_CAR_M) status.textContent = '🎉 Estás al lado de tu coche';
   else if (noCompass) status.textContent = 'Este móvil no tiene brújula: la flecha indica la dirección con el norte arriba.';
   else if (heading == null) status.textContent = 'Esperando a la brújula…';
   else status.textContent = accuracy > 30 ? `Sigue la flecha (GPS ±${accuracy} m, poco preciso)` : 'Sigue la flecha';

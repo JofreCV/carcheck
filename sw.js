@@ -27,6 +27,7 @@ const SHELL_FILES = [
   './js/geocode.js',
   './js/compass.js',
   './js/offline-tiles.js',
+  './js/wake-lock.js',
   './vendor/leaflet/leaflet.css',
   './vendor/leaflet/leaflet-src.esm.js',
   './icons/icon.svg',

@@ -8,6 +8,7 @@ import { reverseGeocode, findNearbyAddress } from './geocode.js';
 import { prefetchParkingTiles } from './offline-tiles.js';
 import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters, bearingDegrees } from './location.js';
 import { startCompass } from './compass.js';
+import { keepScreenOn } from './wake-lock.js';
 import {
   processPhoto, processVideoFile, isCameraSupported, isInAppRecordingSupported, openRearCamera, stopCamera,
   recordClip, captureVideoFrame, videoInfo, takePhoto, supportsTorch, setTorch, VIDEO_MAX_MS,
@@ -493,6 +494,7 @@ let mapModule = null;      // se carga la primera vez que se abre la vista (impo
 let stopWatchingMe = null; // deja de seguir la posición al salir del mapa (ahorra batería)
 let mapEntryId = 0;        // cada entrada al mapa tiene un número; las anteriores se descartan
 let mapCar = null;         // ubicación del coche que muestra el mapa (para la brújula)
+let releaseMapScreen = null; // pantalla encendida mientras el mapa enseña un coche que buscar
 
 async function enterMapView() {
   const entryId = ++mapEntryId;
@@ -521,6 +523,8 @@ async function enterMapView() {
   mapModule.recenter();
   ui.setCarActions({ directionsUrl: car ? mapModule.directionsUrl(car) : null });
   ui.renderMapInfo(state);
+  releaseMapScreen?.();
+  releaseMapScreen = car ? keepScreenOn() : null;
 
   stopWatchingMe?.();
   stopWatchingMe = watchCurrentPosition(
@@ -542,6 +546,8 @@ function leaveMapView() {
   mapEntryId++; // invalida una entrada que aún se esté cargando
   stopWatchingMe?.();
   stopWatchingMe = null;
+  releaseMapScreen?.();
+  releaseMapScreen = null;
 }
 
 // ===== Brújula =====
@@ -569,7 +575,8 @@ function openCompass() {
     (heading) => { state.heading = heading; update(); },
     () => { state.noCompass = true; update(); },
   );
-  stopCompassSensors = () => { stopGps(); stopHeading(); };
+  const releaseScreen = keepScreenOn();
+  stopCompassSensors = () => { stopGps(); stopHeading(); releaseScreen(); };
 }
 
 // ===== Compartir ubicación =====

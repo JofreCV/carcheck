@@ -416,6 +416,7 @@ main {
 }
 .compass-arrow { width: 70%; height: 70%; fill: var(--primary); transition: transform 0.25s ease-out; }
 .compass-arrow.waiting { fill: var(--surface-2); }
+.compass-arrow.near { opacity: 0.25; }
 .compass-status { margin: 0; font-size: 1.15rem; font-weight: 600; min-height: 1.5em; }
 .compass-hint { margin: 0; max-width: 360px; color: var(--muted); font-size: 0.9rem; }
 .compass .viewer-close { background: var(--surface-2); color: var(--text); }
