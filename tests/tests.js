@@ -8,7 +8,7 @@ import {
   ticketTimeToTimestamp, timestampToTimeInput, formatCountdown, shareText,
 } from '../js/format.js';
 import { distanceMeters, bearingDegrees } from '../js/location.js';
-import { buildAddress } from '../js/geocode.js';
+import { buildAddress, findNearbyAddress } from '../js/geocode.js';
 import { tileFor, tilesAround, tileUrl } from '../js/offline-tiles.js';
 
 const tests = [];
@@ -172,6 +172,17 @@ test('buildAddress (respuesta de Nominatim)', () => {
   assertEqual(buildAddress({ address: { pedestrian: 'Rambla Nova', town: 'Reus' } }), 'Rambla Nova, Reus');
   assertEqual(buildAddress({ address: { village: 'Altafulla' } }), 'Altafulla');
   assertEqual(buildAddress({ error: 'Unable to geocode' }), '');
+});
+
+test('findNearbyAddress reutiliza la calle de un aparcamiento cercano y preciso', () => {
+  const here = { lat: 41.1189, lng: 1.2445 };
+  const at = (dLat, accuracy, address) => ({ address, location: { lat: here.lat + dLat, lng: here.lng, accuracy } });
+  // 0,0001° de latitud ≈ 11 m
+  assertEqual(findNearbyAddress(here, [at(0.0002, 10, 'Lejos 1'), at(0.0001, 10, 'Cerca 2')]), 'Cerca 2', 'el más cercano:');
+  assertEqual(findNearbyAddress(here, [at(0.0004, 10, 'A 44 m')]), null, 'a más de 25 m no sirve:');
+  assertEqual(findNearbyAddress(here, [at(0.0001, 80, 'Impreciso')]), null, 'con mala precisión no se fía:');
+  assertEqual(findNearbyAddress(here, [at(0.0001, 10, ''), at(0, 10, null), { address: 'X', location: null }]), null,
+    'sin dirección o sin ubicación no cuenta:');
 });
 
 // ===== storage.js (sobre una base de datos de pruebas) =====

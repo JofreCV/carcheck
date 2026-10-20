@@ -4,7 +4,7 @@ import * as ui from './ui.js';
 import * as storage from './storage.js';
 import { createRecord, selectRecordsToPurge, isParked } from './model.js';
 import { plural, shareText } from './format.js';
-import { reverseGeocode } from './geocode.js';
+import { reverseGeocode, findNearbyAddress } from './geocode.js';
 import { prefetchParkingTiles } from './offline-tiles.js';
 import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters, bearingDegrees } from './location.js';
 import { startCompass } from './compass.js';
@@ -316,22 +316,29 @@ let geocoding = false;
 
 /**
  * Busca la dirección de los registros que aún no la tienen (address === null), empezando por
- * los más recientes y con un máximo por llamada para no hacer peticiones masivas.
+ * los más recientes. Primero reutiliza la de un aparcamiento anterior a pocos metros (sin red);
+ * si no la hay, pregunta a Nominatim, con un máximo de `limit` peticiones por llamada.
  * Si falla la red se para y se reintentará en otro momento (al guardar, al abrir o al volver la conexión).
  */
 async function fillMissingAddresses(limit = 5) {
-  if (geocoding || !navigator.onLine) return;
+  if (geocoding) return;
   geocoding = true;
   let updated = false;
   try {
-    const pending = (await storage.getAllRecords())
-      .filter((record) => record.location && record.address === null)
-      .slice(0, limit);
+    const all = await storage.getAllRecords();
+    const pending = all.filter((record) => record.location && record.address === null);
+    let requests = 0;
     for (const record of pending) {
-      const address = await reverseGeocode(record.location);
+      let address = findNearbyAddress(record.location, all);
+      if (address === null) {
+        if (!navigator.onLine || requests >= limit) continue;
+        requests++;
+        address = await reverseGeocode(record.location);
+      }
       const fresh = await storage.getRecord(record.id); // pudo borrarse o editarse mientras tanto
       if (!fresh) continue;
       await storage.updateRecord({ ...fresh, address });
+      record.address = address; // `record` está en `all`: así sirve de vecino a los siguientes
       updated = true;
     }
   } catch (error) {

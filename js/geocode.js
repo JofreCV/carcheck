@@ -5,9 +5,32 @@
 //   - nunca repetir la misma petición (el resultado se guarda en el registro),
 //   - nada de peticiones masivas (app.js solo pide los registros pendientes más recientes).
 // El navegador envía el Referer de la app, que es la identificación que pide Nominatim a las webs.
+// Antes de preguntar, se mira si ya aparcaste a pocos metros (casa, trabajo…): así ni se gasta
+// una petición ni hace falta conexión.
+
+import { distanceMeters, POOR_ACCURACY_M } from './location.js';
 
 const ENDPOINT = 'https://nominatim.openstreetmap.org/reverse';
 const MIN_INTERVAL_MS = 1100;
+export const NEARBY_ADDRESS_M = 25;
+
+/**
+ * Calle de un aparcamiento anterior a menos de 25 m del punto, o null si no hay ninguno.
+ * Solo se fía de registros con buena precisión, y si hay varios coge el más cercano.
+ */
+export function findNearbyAddress(location, records, maxDistance = NEARBY_ADDRESS_M) {
+  let best = null;
+  let bestDistance = maxDistance;
+  for (const record of records) {
+    if (!record.address || !record.location || record.location.accuracy > POOR_ACCURACY_M) continue;
+    const distance = distanceMeters(location, record.location);
+    if (distance <= bestDistance) {
+      best = record.address;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
 
 let lastRequestAt = 0;
 let queue = Promise.resolve();
