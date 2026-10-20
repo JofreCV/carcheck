@@ -13,7 +13,8 @@ import { startCompass } from './compass.js';
 import { keepScreenOn } from './wake-lock.js';
 import {
   processPhoto, processVideoFile, isCameraSupported, isInAppRecordingSupported, openRearCamera, stopCamera,
-  recordClip, captureVideoFrame, videoInfo, takePhoto, supportsTorch, setTorch, VIDEO_MAX_MS,
+  recordClip, captureVideoFrame, videoInfo, takePhoto, supportsTorch, setTorch, zoomRange, zoomLevels, setZoom,
+  VIDEO_MAX_MS,
 } from './media.js';
 
 const { $ } = ui;
@@ -318,6 +319,8 @@ function setLockMedia(session, media) {
 let camera = null;      // MediaStream de la cámara trasera mientras el diálogo está abierto
 let cameraMode = null;  // 'photo' | 'video'
 let torchOn = false;
+let zoomSteps = [];     // niveles del botón de zoom (p. ej. [1, 2, 3]); vacío si la cámara no tiene zoom
+let zoomIndex = 0;
 let recording = null;   // { done, stop } de la grabación en curso
 // Tras un fallo de cámara (p. ej. permiso denegado) se usa la cámara del sistema con <input capture>.
 const useSystemCamera = { photo: false, video: false };
@@ -344,7 +347,10 @@ async function openCamera(mode) {
   }
   cameraMode = mode;
   torchOn = false;
-  ui.showCamera(camera, mode, supportsTorch(camera));
+  const zoom = zoomRange(camera);
+  zoomSteps = zoom ? zoomLevels(zoom) : [];
+  zoomIndex = 0;
+  ui.showCamera(camera, mode, { torch: supportsTorch(camera), zoom: zoomSteps.length > 1 });
 }
 
 function onShutter() {
@@ -373,6 +379,19 @@ async function onTorchToggle() {
   } catch (error) {
     console.error(error);
     ui.toast('No se ha podido encender la linterna.', 'warning');
+  }
+}
+
+/** Cada toque pasa al siguiente nivel de zoom (1× → 2× → 3× → 1×). */
+async function onZoomToggle() {
+  const next = (zoomIndex + 1) % zoomSteps.length;
+  try {
+    await setZoom(camera, zoomSteps[next]);
+    zoomIndex = next;
+    ui.setZoomButton(zoomSteps[next]);
+  } catch (error) {
+    console.error(error);
+    ui.toast('No se ha podido cambiar el zoom.', 'warning');
   }
 }
 
@@ -444,6 +463,7 @@ function setupLockFlow() {
 
   $('#btn-cam-shutter').addEventListener('click', onShutter);
   $('#btn-torch').addEventListener('click', onTorchToggle);
+  $('#btn-zoom').addEventListener('click', onZoomToggle);
   $('#btn-cam-cancel').addEventListener('click', () => $('#camera').close());
   $('#camera').addEventListener('close', onCameraClosed);
 }

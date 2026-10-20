@@ -317,12 +317,17 @@ export function renderGpsStatus({ fix, error, done }) {
 
 // ===== Cámara (foto y vídeo) =====
 
-/** @param {'photo'|'video'} mode */
-export function showCamera(stream, mode, torchAvailable) {
+/**
+ * @param {'photo'|'video'} mode
+ * @param {{ torch: boolean, zoom: boolean }} controls  qué controles admite la cámara
+ */
+export function showCamera(stream, mode, controls) {
   $('#camera').dataset.mode = mode;
   $('#camera-preview').srcObject = stream;
-  $('#btn-torch').hidden = !torchAvailable;
+  $('#btn-torch').hidden = !controls.torch;
+  $('#btn-zoom').hidden = !controls.zoom;
   setTorchButton(false);
+  setZoomButton(1);
   renderCamera('ready');
   $('#camera').showModal();
 }
@@ -352,6 +357,13 @@ export function setTorchButton(on) {
   const button = $('#btn-torch');
   button.setAttribute('aria-pressed', String(on));
   button.setAttribute('aria-label', on ? 'Apagar linterna' : 'Encender linterna');
+}
+
+/** "1×", "2×", "1,5×" */
+export function setZoomButton(level) {
+  const button = $('#btn-zoom');
+  button.textContent = `${level.toLocaleString('es-ES', { maximumFractionDigits: 1 })}×`;
+  button.setAttribute('aria-label', `Zoom: ${button.textContent} (toca para cambiar)`);
 }
 
 export function resetCamera() {

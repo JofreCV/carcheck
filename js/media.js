@@ -89,18 +89,23 @@ function pickVideoMimeType() {
 /**
  * Abre la cámara trasera sin audio. Para vídeo, resolución moderada (≤720p) para que ocupe poco;
  * para foto (highRes), algo más, porque luego se comprime igualmente a 1280 px.
+ * `zoom: true` pide además poder hacer zoom (Chrome lo incluye en el permiso de la cámara como
+ * «mover la cámara»). Si ese permiso extra se deniega, se abre la cámara sin zoom.
  */
 export async function openRearCamera({ highRes = false } = {}) {
+  const video = {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: highRes ? 1920 : 1280 },
+    height: { ideal: highRes ? 1080 : 720 },
+    frameRate: { ideal: 30 },
+  };
   try {
-    return await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: highRes ? 1920 : 1280 },
-        height: { ideal: highRes ? 1080 : 720 },
-        frameRate: { ideal: 30 },
-      },
-      audio: false,
-    });
+    try {
+      return await navigator.mediaDevices.getUserMedia({ video: { ...video, zoom: true }, audio: false });
+    } catch (error) {
+      if (error.name !== 'NotAllowedError') throw error;
+      return await navigator.mediaDevices.getUserMedia({ video, audio: false });
+    }
   } catch (error) {
     const denied = error.name === 'NotAllowedError' || error.name === 'SecurityError';
     throw new CaptureError(denied ? 'denied' : 'unavailable', error.message);
@@ -119,6 +124,22 @@ export function supportsTorch(stream) {
 
 export function setTorch(stream, on) {
   return stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: on }] });
+}
+
+/** Zoom que admite la cámara ({ min, max }), o null si no se puede controlar. */
+export function zoomRange(stream) {
+  const zoom = stream?.getVideoTracks()[0]?.getCapabilities?.().zoom;
+  return zoom && zoom.max > zoom.min ? { min: zoom.min, max: zoom.max } : null;
+}
+
+/** Niveles del botón de zoom: 1×, 2× y 3×, los que quepan en lo que admite la cámara. */
+export function zoomLevels({ min, max }) {
+  const levels = [1, 2, 3].filter((level) => level >= min && level <= max);
+  return levels.length >= 2 ? levels : [min, max];
+}
+
+export function setZoom(stream, level) {
+  return stream.getVideoTracks()[0].applyConstraints({ advanced: [{ zoom: level }] });
 }
 
 /**

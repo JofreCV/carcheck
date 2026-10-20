@@ -9,6 +9,7 @@ import {
 } from '../js/format.js';
 import { distanceMeters, bearingDegrees } from '../js/location.js';
 import { buildAddress, findNearbyAddress } from '../js/geocode.js';
+import { zoomLevels } from '../js/media.js';
 import { tileFor, tilesAround, tileUrl, isTileRecent } from '../js/offline-tiles.js';
 
 const tests = [];
@@ -201,6 +202,12 @@ test('findNearbyAddress reutiliza la calle de un aparcamiento cercano y preciso'
   assertEqual(findNearbyAddress(here, [at(0.0001, 80, 'Impreciso')]), null, 'con mala precisión no se fía:');
   assertEqual(findNearbyAddress(here, [at(0.0001, 10, ''), at(0, 10, null), { address: 'X', location: null }]), null,
     'sin dirección o sin ubicación no cuenta:');
+});
+
+test('zoomLevels: 1×, 2× y 3× dentro de lo que admite la cámara', () => {
+  assertEqual(zoomLevels({ min: 1, max: 8 }), [1, 2, 3]);
+  assertEqual(zoomLevels({ min: 1, max: 2.5 }), [1, 2]);
+  assertEqual(zoomLevels({ min: 1, max: 1.5 }), [1, 1.5], 'si solo cabe 1×, de mínimo a máximo:');
 });
 
 // ===== storage.js (sobre una base de datos de pruebas) =====
