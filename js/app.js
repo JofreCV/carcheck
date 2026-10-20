@@ -3,10 +3,12 @@
 import * as ui from './ui.js';
 import * as storage from './storage.js';
 import { createRecord, selectRecordsToPurge, isParked } from './model.js';
-import { plural, shareText, formatRelative } from './format.js';
+import { plural, shareText, formatRelative, setFloorInNote } from './format.js';
 import { reverseGeocode, findNearbyAddress } from './geocode.js';
 import { prefetchParkingTiles } from './offline-tiles.js';
-import { acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters, bearingDegrees } from './location.js';
+import {
+  acquireBestPosition, getLastKnownPosition, watchCurrentPosition, distanceMeters, bearingDegrees, POOR_ACCURACY_M,
+} from './location.js';
 import { startCompass } from './compass.js';
 import { keepScreenOn } from './wake-lock.js';
 import {
@@ -61,14 +63,16 @@ function startLock() {
   lockSession?.gps?.stop(); // si el cierre anterior aún afinaba el GPS, se queda con lo que tenga
   const record = createRecord();
   const session = {
-    recordId: record.id, previous: null, gps: null, fix: null, error: null, gpsDone: false, settled: null, lastKnown: null,
-    sheetOpen: true, closedBeforeGps: false, discarded: false, writes: null, detailsTimer: 0, mediaProcessing: null,
+    recordId: record.id, startedAt: record.createdAt, previous: null, gps: null, fix: null, error: null, gpsDone: false,
+    settled: null, lastKnown: null, sheetOpen: true, closedBeforeGps: false, discarded: false, writes: null,
+    detailsTimer: 0, mediaProcessing: null, floorsShown: false,
   };
   lockSession = session;
 
   ui.resetLockSheet();
   renderLockGps(session);
   $('#lock-sheet').showModal();
+  setTimeout(() => updateFloorChips(session), UNDERGROUND_HINT_MS);
 
   // Primera escritura: el registro. Los cambios posteriores se encadenan detrás.
   session.writes = (async () => {
@@ -145,6 +149,34 @@ function saveLockChanges(session, fields, media) {
 function renderLockGps(session) {
   if (session !== lockSession || !session.sheetOpen) return; // la hoja ya enseña otro cierre (o está cerrada)
   ui.renderGpsStatus({ fix: session.fix, error: session.error, done: session.gpsDone });
+  updateFloorChips(session);
+}
+
+// ----- Botones de planta: solo si parece un parking subterráneo -----
+
+const UNDERGROUND_HINT_MS = 5000;
+
+/** Sin GPS a los 5 s (o muy impreciso), o solo con la última ubicación conocida: probablemente bajo tierra. */
+function looksUnderground(session) {
+  if (session.error?.code === 'denied' || session.error?.code === 'unsupported') return false;
+  if (session.fix?.source === 'lastKnown') return true;
+  if (Date.now() - session.startedAt < UNDERGROUND_HINT_MS) return false;
+  return !session.fix || session.fix.accuracy > POOR_ACCURACY_M;
+}
+
+function updateFloorChips(session) {
+  // Una vez visibles se quedan, aunque luego mejore el GPS: que no desaparezcan al ir a tocarlos.
+  if (session !== lockSession || !session.sheetOpen || session.floorsShown || !looksUnderground(session)) return;
+  session.floorsShown = true;
+  ui.showFloorChips(true);
+}
+
+function onFloorChip(event) {
+  const chip = event.target.closest('[data-floor]');
+  if (!chip) return;
+  const input = $('#note-input');
+  input.value = setFloorInNote(input.value, chip.dataset.floor);
+  input.dispatchEvent(new Event('input', { bubbles: true })); // se guarda como si se hubiera escrito
 }
 
 /** Nota y ticket tal como están en la hoja. */
@@ -401,6 +433,8 @@ function setupLockFlow() {
   });
   $('#lock-form').addEventListener('input', onLockDetailsEdited);
   $('#lock-form').addEventListener('change', onLockDetailsEdited);
+  $('#floor-chips').addEventListener('click', onFloorChip);
+  $('#note-input').addEventListener('input', (event) => ui.markFloorChip(event.target.value));
 
   $('#btn-photo').addEventListener('click', () => openCamera('photo'));
   $('#btn-video').addEventListener('click', () => openCamera('video'));

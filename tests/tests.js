@@ -5,7 +5,7 @@ import { SCHEMA_VERSION, createRecord, createMediaInfo, migrateRecord, selectRec
 import * as storage from '../js/storage.js';
 import {
   formatRelative, formatClock, formatDuration, formatDistance, formatBytes, describePlace,
-  ticketTimeToTimestamp, timestampToTimeInput, formatCountdown, shareText,
+  ticketTimeToTimestamp, timestampToTimeInput, formatCountdown, shareText, setFloorInNote, floorInNote,
 } from '../js/format.js';
 import { distanceMeters, bearingDegrees } from '../js/location.js';
 import { buildAddress, findNearbyAddress } from '../js/geocode.js';
@@ -126,6 +126,15 @@ test('shareText', () => {
     '🚗 Mi coche está aquí (Planta -2 · Carrer Major 12, Tarragona): https://www.google.com/maps/search/?api=1&query=41.1189,1.2445');
   assertEqual(shareText({ note: '', address: null, location }),
     '🚗 Mi coche está aquí: https://www.google.com/maps/search/?api=1&query=41.1189,1.2445');
+});
+
+test('setFloorInNote y floorInNote (botones de planta)', () => {
+  assertEqual(setFloorInNote('', '-2'), 'Planta -2');
+  assertEqual(setFloorInNote('plaza 47', '-2'), 'Planta -2, plaza 47', 'se añade delante:');
+  assertEqual(setFloorInNote('Planta -2, plaza 47', '-3'), 'Planta -3, plaza 47', 'se sustituye:');
+  assertEqual(setFloorInNote('junto al ascensor, planta -1', '-4'), 'junto al ascensor, Planta -4');
+  assertEqual(floorInNote('Planta -3, plaza 47'), '-3');
+  assertEqual(floorInNote('plaza 47'), null);
 });
 
 test('formatDistance y formatBytes', () => {

@@ -102,6 +102,15 @@
         <input id="note-input" type="text" maxlength="120" autocomplete="off"
                placeholder="Planta -2, plaza 47, calle…" enterkeyhint="done">
       </label>
+      <!-- Solo aparecen si parece un parking subterráneo (sin señal GPS): la planta con un toque,
+           sin abrir el teclado -->
+      <div id="floor-chips" class="floor-chips" hidden>
+        <span>¿Parking? Planta</span>
+        <button type="button" class="chip" data-floor="-1" aria-pressed="false">-1</button>
+        <button type="button" class="chip" data-floor="-2" aria-pressed="false">-2</button>
+        <button type="button" class="chip" data-floor="-3" aria-pressed="false">-3</button>
+        <button type="button" class="chip" data-floor="-4" aria-pressed="false">-4</button>
+      </div>
 
       <div class="field ticket-field">
         <span>🅿️ Ticket de zona azul hasta <span class="muted">(opcional)</span></span>

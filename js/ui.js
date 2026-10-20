@@ -2,7 +2,7 @@
 
 import {
   formatRelative, formatDateTime, formatClock, formatDuration, formatBytes, formatDistance, describePlace, describeLocationError,
-  formatCountdown, ticketTimeToTimestamp, timestampToTimeInput, mapsLink,
+  formatCountdown, ticketTimeToTimestamp, timestampToTimeInput, mapsLink, floorInNote,
 } from './format.js';
 import { POOR_ACCURACY_M } from './location.js';
 import { isParked } from './model.js';
@@ -204,6 +204,22 @@ export function resetLockSheet() {
   $('#lock-form').reset();
   setTicketInput($('#lock-ticket'), null);
   renderProofPreview(null);
+  showFloorChips(false);
+  markFloorChip('');
+}
+
+// ===== Botones de planta (parkings subterráneos) =====
+
+export function showFloorChips(visible) {
+  $('#floor-chips').hidden = !visible;
+}
+
+/** Marca el botón de la planta que pone la nota (o ninguno). */
+export function markFloorChip(note) {
+  const floor = floorInNote(note);
+  for (const chip of document.querySelectorAll('#floor-chips [data-floor]')) {
+    chip.setAttribute('aria-pressed', String(chip.dataset.floor === floor));
+  }
 }
 
 let proofThumbUrl = null;

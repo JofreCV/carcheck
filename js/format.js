@@ -115,6 +115,21 @@ export function shareText(record) {
   return `🚗 Mi coche está aquí${details ? ` (${details})` : ''}: ${mapsLink(record.location)}`;
 }
 
+const FLOOR_PATTERN = /planta\s*(-?\d+)/i;
+
+/** Planta que aparece en la nota ("Planta -2, plaza 47" → "-2"), o null. */
+export function floorInNote(note) {
+  return note.match(FLOOR_PATTERN)?.[1] ?? null;
+}
+
+/** Pone "Planta -2" en la nota: sustituye la planta que hubiera o la añade delante. */
+export function setFloorInNote(note, floor) {
+  const label = `Planta ${floor}`;
+  const text = note.trim();
+  if (FLOOR_PATTERN.test(text)) return text.replace(FLOOR_PATTERN, label);
+  return text ? `${label}, ${text}` : label;
+}
+
 /** Texto corto que describe dónde está el coche: nota, dirección o coordenadas. */
 export function describePlace(record) {
   const parts = [];

@@ -154,6 +154,9 @@ main {
   font-weight: 600;
 }
 .field .small { margin: 0; font-weight: 400; }
+.floor-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: -6px; }
+.floor-chips .chip { min-width: 52px; }
+.chip[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
 .status-title { margin: 0; font-size: 1.3rem; font-weight: 700; }
 
 /* ===== Barra inferior ===== */
